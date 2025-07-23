@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__linear__list_teams",
+      "mcp__linear__create_issue",
+      "mcp__linear__get_issue",
+      "Bash(git pull:*)",
+      "Bash(git checkout:*)",
+      "Bash(mkdir:*)",
+      "Bash(make test:*)",
+      "Bash(pytest:*)",
+      "Bash(make:*)",
+      "Bash(uv pip install:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run:*)",
+      "Bash(find:*)"
+    ],
+    "deny": []
+  }
+}
