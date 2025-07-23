@@ -1,0 +1,63 @@
+{
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/*.pyc",
+    ".venv",
+    "venv",
+    "build",
+    "dist"
+  ],
+  "defineConstant": {
+    "DEBUG": true
+  },
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "reportMissingModuleSource": false,
+  "pythonVersion": "3.8",
+  "pythonPlatform": "Linux",
+  "typeCheckingMode": "strict",
+  "useLibraryCodeForTypes": true,
+  "reportUnknownParameterType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownLambdaType": false,
+  "reportGeneralTypeIssues": true,
+  "reportOptionalSubscript": true,
+  "reportOptionalMemberAccess": true,
+  "reportOptionalCall": true,
+  "reportOptionalIterable": true,
+  "reportOptionalContextManager": true,
+  "reportOptionalOperand": true,
+  "reportTypedDictNotRequiredAccess": true,
+  "reportConstantRedefinition": true,
+  "reportIncompatibleMethodOverride": true,
+  "reportIncompatibleVariableOverride": true,
+  "reportInvalidStringEscapeSequence": true,
+  "reportUnknownArgumentType": false,
+  "reportUnknownParameterType": false,
+  "reportCallInDefaultInitializer": true,
+  "reportUnnecessaryIsInstance": true,
+  "reportUnnecessaryCast": true,
+  "reportUnnecessaryComparison": true,
+  "reportImplicitStringConcatenation": true,
+  "reportUnusedFunction": true,
+  "reportUnusedClass": true,
+  "reportUnusedImport": true,
+  "reportUnusedVariable": true,
+  "reportDuplicateImport": true,
+  "reportWildcardImportFromLibrary": true,
+  "reportOptionalMemberAccess": true,
+  "reportPrivateImportUsage": true,
+  "executionEnvironments": [
+    {
+      "root": "src",
+      "pythonVersion": "3.8",
+      "pythonPlatform": "Linux",
+      "extraPaths": []
+    }
+  ]
+}
