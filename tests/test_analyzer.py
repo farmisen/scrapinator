@@ -7,6 +7,12 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from src.analyzer import WebTaskAnalyzer
+from src.exceptions import (
+    InvalidResponseFormatError,
+    LLMCommunicationError,
+    RateLimitError,
+    ValidationError,
+)
 from src.models.task import Task
 
 
@@ -102,11 +108,12 @@ class TestWebTaskAnalyzer:
         """Test error handling for invalid JSON response."""
         mock_llm_client.complete.return_value = "This is not JSON"
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(InvalidResponseFormatError) as exc_info:
             await analyzer.analyze_task("Test task", "https://example.com")
         
         assert "No valid JSON object found" in str(exc_info.value)
-        assert "Expected a JSON object" in str(exc_info.value)
+        assert exc_info.value.response == "This is not JSON"
+        assert exc_info.value.expected_format is not None
 
     @pytest.mark.asyncio
     async def test_analyze_task_missing_required_field(self, analyzer, mock_llm_client):
@@ -118,11 +125,12 @@ class TestWebTaskAnalyzer:
         })
         mock_llm_client.complete.return_value = mock_response
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await analyzer.analyze_task("Test task", "https://example.com")
         
         assert "Missing required fields: success_criteria" in str(exc_info.value)
-        assert "Expected all of:" in str(exc_info.value)
+        assert exc_info.value.field == "success_criteria"
+        assert exc_info.value.value is None
 
     @pytest.mark.asyncio
     async def test_analyze_task_empty_objectives(self, analyzer, mock_llm_client):
@@ -134,20 +142,24 @@ class TestWebTaskAnalyzer:
         })
         mock_llm_client.complete.return_value = mock_response
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await analyzer.analyze_task("Test task", "https://example.com")
         
         assert "Field 'objectives' must contain at least one item" in str(exc_info.value)
+        assert exc_info.value.field == "objectives"
+        assert exc_info.value.value == []
 
     @pytest.mark.asyncio
     async def test_analyze_task_llm_error(self, analyzer, mock_llm_client):
         """Test error handling when LLM call fails."""
         mock_llm_client.complete.side_effect = Exception("LLM API error")
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(LLMCommunicationError) as exc_info:
             await analyzer.analyze_task("Test task", "https://example.com")
         
-        assert "LLM API error" in str(exc_info.value)
+        assert "Failed to analyze task" in str(exc_info.value)
+        assert exc_info.value.original_error is not None
+        assert str(exc_info.value.original_error) == "LLM API error"
 
     @pytest.mark.asyncio
     async def test_analyze_task_timeout(self, mock_llm_client):
@@ -158,12 +170,13 @@ class TestWebTaskAnalyzer:
             return '{"description": "test", "objectives": ["obj"], "success_criteria": ["success"]}'
         
         mock_llm_client.complete = slow_complete
-        analyzer = WebTaskAnalyzer(mock_llm_client, timeout=0.1)  # Very short timeout
+        analyzer = WebTaskAnalyzer(mock_llm_client, timeout=0.1, max_retries=1)  # Short timeout, no retries
         
-        with pytest.raises(TimeoutError) as exc_info:
+        with pytest.raises(LLMCommunicationError) as exc_info:
             await analyzer.analyze_task("Test task", "https://example.com")
         
         assert "timed out after 0.1 seconds" in str(exc_info.value)
+        assert exc_info.value.retry_count == 1
 
     def test_build_analysis_prompt(self, analyzer):
         """Test prompt building."""
@@ -246,3 +259,90 @@ class TestWebTaskAnalyzer:
         # Should have the examples from the full prompt
         assert "Example 1:" in prompt
         assert "Important guidelines:" in prompt
+
+    @pytest.mark.asyncio
+    async def test_retry_on_transient_error(self, mock_llm_client):
+        """Test that transient errors trigger retries."""
+        # First two calls fail, third succeeds
+        mock_llm_client.complete.side_effect = [
+            Exception("Network error"),
+            Exception("Connection timeout"),
+            json.dumps({
+                "description": "Test task",
+                "objectives": ["Do something"],
+                "success_criteria": ["Task completed"]
+            })
+        ]
+        
+        analyzer = WebTaskAnalyzer(mock_llm_client, max_retries=3, retry_delay=0.01)
+        task = await analyzer.analyze_task("Test task", "https://example.com")
+        
+        assert isinstance(task, Task)
+        assert mock_llm_client.complete.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_error_handling(self, mock_llm_client):
+        """Test rate limit error detection and handling."""
+        mock_llm_client.complete.side_effect = ValueError("Rate limit exceeded")
+        
+        analyzer = WebTaskAnalyzer(mock_llm_client, max_retries=2, retry_delay=0.01)
+        
+        with pytest.raises(RateLimitError) as exc_info:
+            await analyzer.analyze_task("Test task", "https://example.com")
+        
+        assert "Rate limit exceeded" in str(exc_info.value)
+        assert exc_info.value.retry_count == 2
+
+    @pytest.mark.asyncio
+    async def test_validation_error_type_checking(self, mock_llm_client):
+        """Test type validation for response fields."""
+        mock_response = json.dumps({
+            "description": 123,  # Should be string
+            "objectives": ["Test"],
+            "success_criteria": ["Done"]
+        })
+        mock_llm_client.complete.return_value = mock_response
+        
+        analyzer = WebTaskAnalyzer(mock_llm_client)
+        
+        with pytest.raises(ValidationError) as exc_info:
+            await analyzer.analyze_task("Test task", "https://example.com")
+        
+        assert "Field 'description' must be a string" in str(exc_info.value)
+        assert exc_info.value.field == "description"
+        assert exc_info.value.value == 123
+
+    @pytest.mark.asyncio
+    async def test_validation_error_list_items(self, mock_llm_client):
+        """Test validation of list item types."""
+        mock_response = json.dumps({
+            "description": "Test",
+            "objectives": ["Valid", 123, "Another"],  # Second item invalid
+            "success_criteria": ["Done"]
+        })
+        mock_llm_client.complete.return_value = mock_response
+        
+        analyzer = WebTaskAnalyzer(mock_llm_client)
+        
+        with pytest.raises(ValidationError) as exc_info:
+            await analyzer.analyze_task("Test task", "https://example.com")
+        
+        assert "Item 1 in field 'objectives' must be a string" in str(exc_info.value)
+        assert exc_info.value.field == "objectives[1]"
+
+    @pytest.mark.asyncio
+    async def test_no_retry_on_validation_error(self, mock_llm_client):
+        """Test that validation errors don't trigger retries."""
+        mock_llm_client.complete.return_value = json.dumps({
+            "description": "Test",
+            "objectives": [],  # Empty list
+            "success_criteria": ["Done"]
+        })
+        
+        analyzer = WebTaskAnalyzer(mock_llm_client, max_retries=3)
+        
+        with pytest.raises(ValidationError):
+            await analyzer.analyze_task("Test task", "https://example.com")
+        
+        # Should only call once, no retries for validation errors
+        assert mock_llm_client.complete.call_count == 1
