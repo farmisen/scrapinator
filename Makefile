@@ -14,24 +14,24 @@ help:
 	@echo "  make all          - Run lint and type-check"
 
 install:
-	pip install -e ".[dev]"
+	uv pip install -e ".[dev]"
 
 lint:
 	@echo "Running Ruff linter..."
-	ruff check src/
+	uv run ruff check src/
 
 format:
 	@echo "Formatting code with Ruff..."
-	ruff format src/
-	ruff check src/ --fix
+	uv run ruff format src/
+	uv run ruff check src/ --fix
 
 type-check:
 	@echo "Running Pyright type checker..."
-	pyright src/
+	uv run pyright src/
 
 test:
 	@echo "Running tests..."
-	pytest
+	uv run pytest
 
 clean:
 	@echo "Cleaning cache files..."
