@@ -223,3 +223,32 @@ class TestWebTaskAnalyzer:
 
         assert result["data_to_extract"] is None
         assert result["actions_to_perform"] is None
+
+    def test_analyzer_with_different_providers(self, mock_llm_client):
+        """Test analyzer initialization with different providers."""
+        # Test default provider (anthropic)
+        analyzer_default = WebTaskAnalyzer(mock_llm_client)
+        assert analyzer_default.provider == "anthropic"
+        assert "examples" in analyzer_default.prompt_config["prompt"].lower()
+        
+        # Test compact provider
+        analyzer_compact = WebTaskAnalyzer(mock_llm_client, provider="compact")
+        assert analyzer_compact.provider == "compact"
+        assert len(analyzer_compact.prompt_config["prompt"]) < 1000
+        
+        # Test openai provider
+        analyzer_openai = WebTaskAnalyzer(mock_llm_client, provider="openai")
+        assert analyzer_openai.provider == "openai"
+        assert analyzer_openai.prompt_config["system_message"] == "You are a web automation expert. Always respond with valid JSON only."
+
+    def test_build_prompt_uses_provider_config(self, mock_llm_client):
+        """Test that prompt building uses the correct provider template."""
+        # Test with compact provider
+        analyzer = WebTaskAnalyzer(mock_llm_client, provider="compact")
+        prompt = analyzer._build_analysis_prompt("Test task", "https://example.com")
+        
+        # Compact prompt should have specific markers
+        assert "Required JSON structure:" in prompt
+        assert "Rules:" in prompt
+        # Should NOT have the examples from the full prompt
+        assert "Example 1:" not in prompt

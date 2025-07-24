@@ -6,7 +6,7 @@ import logging
 from typing import Any, Dict, Optional, Protocol
 
 from src.models.task import Task
-from src.prompts.task_analysis import TASK_ANALYSIS_PROMPT
+from src.prompts.task_analysis import get_prompt_config
 from src.utils.json_utils import extract_json_from_text, normalize_optional_fields
 
 logger = logging.getLogger(__name__)
@@ -26,16 +26,24 @@ class LLMClient(Protocol):
 class WebTaskAnalyzer:
     """Analyzes natural language task descriptions and converts them to structured Task objects."""
 
-    def __init__(self, llm_client: LLMClient, timeout: Optional[float] = 30.0) -> None:
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        timeout: Optional[float] = 30.0,
+        provider: str = "anthropic",
+    ) -> None:
         """
         Initialize the WebTaskAnalyzer with an LLM client.
 
         Args:
             llm_client: The LLM client instance to use for analysis
             timeout: Maximum time in seconds to wait for LLM response (default: 30.0)
+            provider: LLM provider name for prompt configuration (default: "anthropic")
         """
         self.llm = llm_client
         self.timeout = timeout
+        self.provider = provider
+        self.prompt_config = get_prompt_config(provider)
 
     async def analyze_task(self, task_description: str, url: str) -> Task:
         """
@@ -94,7 +102,8 @@ class WebTaskAnalyzer:
         Returns:
             str: The formatted prompt for the LLM
         """
-        return TASK_ANALYSIS_PROMPT.format(url=url, task_description=task_description)
+        prompt_template = self.prompt_config["prompt"]
+        return prompt_template.format(url=url, task_description=task_description)
 
     def _parse_llm_response(self, response: str) -> Dict[str, Any]:
         """
