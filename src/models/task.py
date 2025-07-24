@@ -15,46 +15,38 @@ class Task(BaseModel):
     """
 
     description: str = Field(
-        ...,
-        description="The original natural language task description provided by the user"
+        ..., description="The original natural language task description provided by the user"
     )
 
     objectives: List[str] = Field(
-        ...,
-        min_length=1,
-        description="List of main objectives to accomplish in the task"
+        ..., min_length=1, description="List of main objectives to accomplish in the task"
     )
 
     constraints: List[str] = Field(
         default_factory=list,
-        description="List of constraints or limitations that must be respected during execution"
+        description="List of constraints or limitations that must be respected during execution",
     )
 
     success_criteria: List[str] = Field(
         ...,
         min_length=1,
-        description="List of criteria that determine if the task has been completed successfully"
+        description="List of criteria that determine if the task has been completed successfully",
     )
 
     data_to_extract: Optional[List[str]] = Field(
-        None,
-        description="Optional list of specific data items to extract from web pages"
+        None, description="Optional list of specific data items to extract from web pages"
     )
 
     actions_to_perform: Optional[List[str]] = Field(
-        None,
-        description="Optional list of specific actions to perform (click, fill, submit, etc.)"
+        None, description="Optional list of specific actions to perform (click, fill, submit, etc.)"
     )
 
     context: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Additional context information that might be useful for task execution"
+        description="Additional context information that might be useful for task execution",
     )
 
-    model_config = ConfigDict(
-        validate_assignment=True,
-        extra="forbid"
-    )
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     def has_data_extraction(self) -> bool:
         """Check if the task involves data extraction."""
@@ -72,11 +64,8 @@ class Task(BaseModel):
         """
         complexity_threshold_objectives = 2
         complexity_threshold_actions = 3
-        return (
-            len(self.objectives) > complexity_threshold_objectives
-            or (
-                self.has_actions()
-                and self.actions_to_perform is not None
-                and len(self.actions_to_perform) > complexity_threshold_actions
-            )
+        return len(self.objectives) > complexity_threshold_objectives or (
+            self.has_actions()
+            and self.actions_to_perform is not None
+            and len(self.actions_to_perform) > complexity_threshold_actions
         )
