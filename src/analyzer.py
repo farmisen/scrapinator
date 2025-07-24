@@ -1,12 +1,18 @@
 """Web Task Analyzer module for understanding natural language task descriptions."""
 
+import asyncio
 import json
 import logging
-from typing import Any, Dict, Protocol
+import re
+from typing import Any, Dict, Optional, Protocol
 
 from src.models.task import Task
+from src.prompts.task_analysis import TASK_ANALYSIS_PROMPT
 
 logger = logging.getLogger(__name__)
+
+# Constants
+RESPONSE_PREVIEW_LENGTH = 200
 
 
 class LLMClient(Protocol):
@@ -20,14 +26,16 @@ class LLMClient(Protocol):
 class WebTaskAnalyzer:
     """Analyzes natural language task descriptions and converts them to structured Task objects."""
 
-    def __init__(self, llm_client: LLMClient) -> None:
+    def __init__(self, llm_client: LLMClient, timeout: Optional[float] = 30.0) -> None:
         """
         Initialize the WebTaskAnalyzer with an LLM client.
 
         Args:
             llm_client: The LLM client instance to use for analysis
+            timeout: Maximum time in seconds to wait for LLM response (default: 30.0)
         """
         self.llm = llm_client
+        self.timeout = timeout
 
     async def analyze_task(self, task_description: str, url: str) -> Task:
         """
@@ -46,10 +54,16 @@ class WebTaskAnalyzer:
         """
         # Build the analysis prompt
         prompt = self._build_analysis_prompt(task_description, url)
+        logger.debug("Sending prompt to LLM: %s", prompt)
 
         try:
-            # Call the LLM to analyze the task
-            response = await self.llm.complete(prompt)
+            # Call the LLM to analyze the task with timeout
+            if self.timeout:
+                response = await asyncio.wait_for(self.llm.complete(prompt), timeout=self.timeout)
+            else:
+                response = await self.llm.complete(prompt)
+
+            logger.debug("Received LLM response: %s", response)
 
             # Parse the response into a Task object
             task_data = self._parse_llm_response(response)
@@ -57,6 +71,10 @@ class WebTaskAnalyzer:
             # Create and return the Task object
             return Task(**task_data)
 
+        except asyncio.TimeoutError as e:
+            logger.exception("LLM request timed out after %s seconds", self.timeout)
+            error_msg = f"LLM request timed out after {self.timeout} seconds"
+            raise TimeoutError(error_msg) from e
         except json.JSONDecodeError as e:
             logger.exception("Failed to parse LLM response as JSON")
             error_msg = f"Could not parse LLM response: {e}"
@@ -76,29 +94,7 @@ class WebTaskAnalyzer:
         Returns:
             str: The formatted prompt for the LLM
         """
-        return f"""Analyze this web automation task and extract structured information.
-
-URL: {url}
-Task: {task_description}
-
-Please analyze this task and provide a JSON response with the following structure:
-{{
-    "description": "The original task description",
-    "objectives": ["List of main objectives to accomplish"],
-    "success_criteria": ["List of criteria that determine success"],
-    "data_to_extract": ["Optional list of data to extract"] or null,
-    "actions_to_perform": ["Optional list of actions like click, fill, submit"] or null,
-    "constraints": ["List of constraints or limitations"],
-    "context": {{"any": "additional context as key-value pairs"}}
-}}
-
-Important:
-- objectives and success_criteria must have at least one item each
-- data_to_extract and actions_to_perform can be null if not applicable
-- constraints can be an empty list if there are none
-- context should be an empty object {{}} if no additional context is needed
-
-Return only the JSON object, no additional text."""
+        return TASK_ANALYSIS_PROMPT.format(url=url, task_description=task_description)
 
     def _parse_llm_response(self, response: str) -> Dict[str, Any]:
         """
@@ -117,37 +113,88 @@ Return only the JSON object, no additional text."""
         # Sometimes LLMs add extra text before/after JSON
         response = response.strip()
 
-        # Find JSON object boundaries
-        start_idx = response.find("{")
-        end_idx = response.rfind("}") + 1
+        # Try multiple JSON extraction strategies
+        json_data = None
 
-        if start_idx == -1 or end_idx == 0:
-            error_msg = "No JSON object found in LLM response"
+        # Strategy 1: Try to parse the entire response as JSON
+        try:
+            json_data = json.loads(response)
+            logger.debug("Successfully parsed entire response as JSON")
+        except json.JSONDecodeError:
+            pass
+
+        # Strategy 2: Find JSON using regex pattern
+        if not json_data:
+            json_pattern = re.compile(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", re.DOTALL)
+            matches = json_pattern.findall(response)
+
+            for match in matches:
+                try:
+                    json_data = json.loads(match)
+                    logger.debug("Successfully extracted JSON using regex")
+                    break
+                except json.JSONDecodeError:
+                    continue
+
+        # Strategy 3: Find JSON object boundaries (original method)
+        if not json_data:
+            start_idx = response.find("{")
+            end_idx = response.rfind("}") + 1
+
+            if start_idx != -1 and end_idx > 0:
+                try:
+                    json_str = response[start_idx:end_idx]
+                    json_data = json.loads(json_str)
+                    logger.debug("Successfully extracted JSON using bracket search")
+                except json.JSONDecodeError:
+                    pass
+
+        if not json_data:
+            error_msg = (
+                f"No valid JSON object found in LLM response. "
+                f"Expected a JSON object with task analysis, but received: "
+                f"{response[:RESPONSE_PREVIEW_LENGTH]}{'...' if len(response) > RESPONSE_PREVIEW_LENGTH else ''}"
+            )
             raise ValueError(error_msg)
 
-        json_str = response[start_idx:end_idx]
-
         # Parse the JSON
-        data = json.loads(json_str)
+        data = json_data
 
         # Validate required fields
         required_fields = ["description", "objectives", "success_criteria"]
-        for field in required_fields:
-            if field not in data:
-                error_msg = f"Missing required field: {field}"
-                raise ValueError(error_msg)
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            error_msg = (
+                f"Missing required fields: {', '.join(missing_fields)}. "
+                f"Expected all of: {', '.join(required_fields)}. "
+                f"Received fields: {', '.join(data.keys())}"
+            )
+            raise ValueError(error_msg)
 
         # Ensure lists have required minimum items
         if not data.get("objectives") or len(data["objectives"]) == 0:
-            error_msg = "objectives must contain at least one item"
+            error_msg = (
+                "Field 'objectives' must contain at least one item. "
+                f"Received: {data.get('objectives', 'field not present')}"
+            )
             raise ValueError(error_msg)
 
         if not data.get("success_criteria") or len(data["success_criteria"]) == 0:
-            error_msg = "success_criteria must contain at least one item"
+            error_msg = (
+                "Field 'success_criteria' must contain at least one item. "
+                f"Received: {data.get('success_criteria', 'field not present')}"
+            )
             raise ValueError(error_msg)
 
         # Set defaults for optional fields
         data.setdefault("constraints", [])
         data.setdefault("context", {})
+
+        # Ensure None instead of null strings or other representations
+        if data.get("data_to_extract") in [None, "null", "None", []]:
+            data["data_to_extract"] = None
+
+        if data.get("actions_to_perform") in [None, "null", "None", []]:
+            data["actions_to_perform"] = None
 
         return data

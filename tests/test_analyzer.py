@@ -1,5 +1,6 @@
 """Tests for the WebTaskAnalyzer class."""
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, Mock
 
@@ -22,7 +23,7 @@ class TestWebTaskAnalyzer:
     @pytest.fixture
     def analyzer(self, mock_llm_client):
         """Create a WebTaskAnalyzer instance with mock LLM client."""
-        return WebTaskAnalyzer(mock_llm_client)
+        return WebTaskAnalyzer(mock_llm_client, timeout=5.0)
 
     @pytest.mark.asyncio
     async def test_analyze_task_success(self, analyzer, mock_llm_client):
@@ -104,7 +105,8 @@ class TestWebTaskAnalyzer:
         with pytest.raises(ValueError) as exc_info:
             await analyzer.analyze_task("Test task", "https://example.com")
         
-        assert "No JSON object found" in str(exc_info.value)
+        assert "No valid JSON object found" in str(exc_info.value)
+        assert "Expected a JSON object" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_analyze_task_missing_required_field(self, analyzer, mock_llm_client):
@@ -119,7 +121,8 @@ class TestWebTaskAnalyzer:
         with pytest.raises(ValueError) as exc_info:
             await analyzer.analyze_task("Test task", "https://example.com")
         
-        assert "Missing required field: success_criteria" in str(exc_info.value)
+        assert "Missing required fields: success_criteria" in str(exc_info.value)
+        assert "Expected all of:" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_analyze_task_empty_objectives(self, analyzer, mock_llm_client):
@@ -134,7 +137,7 @@ class TestWebTaskAnalyzer:
         with pytest.raises(ValueError) as exc_info:
             await analyzer.analyze_task("Test task", "https://example.com")
         
-        assert "objectives must contain at least one item" in str(exc_info.value)
+        assert "Field 'objectives' must contain at least one item" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_analyze_task_llm_error(self, analyzer, mock_llm_client):
@@ -145,6 +148,22 @@ class TestWebTaskAnalyzer:
             await analyzer.analyze_task("Test task", "https://example.com")
         
         assert "LLM API error" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_analyze_task_timeout(self, mock_llm_client):
+        """Test timeout handling for LLM calls."""
+        # Create a slow mock that takes longer than timeout
+        async def slow_complete(prompt):
+            await asyncio.sleep(10)  # Sleep longer than timeout
+            return '{"description": "test", "objectives": ["obj"], "success_criteria": ["success"]}'
+        
+        mock_llm_client.complete = slow_complete
+        analyzer = WebTaskAnalyzer(mock_llm_client, timeout=0.1)  # Very short timeout
+        
+        with pytest.raises(TimeoutError) as exc_info:
+            await analyzer.analyze_task("Test task", "https://example.com")
+        
+        assert "timed out after 0.1 seconds" in str(exc_info.value)
 
     def test_build_analysis_prompt(self, analyzer):
         """Test prompt building."""
@@ -189,3 +208,18 @@ class TestWebTaskAnalyzer:
 
         assert result["constraints"] == []
         assert result["context"] == {}
+        
+    def test_parse_llm_response_null_handling(self, analyzer):
+        """Test that null strings are converted to None."""
+        response = json.dumps({
+            "description": "Test",
+            "objectives": ["Obj1"],
+            "success_criteria": ["Success"],
+            "data_to_extract": "null",
+            "actions_to_perform": []
+        })
+
+        result = analyzer._parse_llm_response(response)
+
+        assert result["data_to_extract"] is None
+        assert result["actions_to_perform"] is None
