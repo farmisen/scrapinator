@@ -6,6 +6,13 @@ import logging
 import time
 from typing import Any, Protocol
 
+import tenacity
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+)
+
 from src.exceptions import (
     ContextLengthExceededError,
     InvalidResponseFormatError,
@@ -25,6 +32,7 @@ RESPONSE_PREVIEW_LENGTH = 200
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY = 1.0  # Base delay in seconds
 MAX_RETRY_DELAY = 60.0  # Maximum delay between retries
+RATE_LIMIT_RETRY_MULTIPLIER = 5.0  # Multiplier for rate limit delays
 
 
 class LLMClient(Protocol):
@@ -80,6 +88,92 @@ class WebTaskAnalyzer:
         self.provider = provider
         self.prompt_config = get_prompt_config(provider)
 
+    def _is_retryable_error(self, exception: BaseException) -> bool:
+        """Determine if an exception should trigger a retry.
+
+        Args:
+            exception: The exception to check
+
+        Returns:
+            bool: True if the error is retryable, False otherwise
+        """
+        # Non-retryable errors
+        if isinstance(
+            exception,
+            InvalidResponseFormatError | ValidationError | ContextLengthExceededError | json.JSONDecodeError,
+        ):
+            return False
+
+        # Rate limit errors are retryable but handled specially
+        if isinstance(exception, ValueError):
+            error_msg = str(exception).lower()
+            if "context length" in error_msg or "token limit" in error_msg:
+                return False
+
+        # All other errors are retryable
+        return True
+
+    def _create_retry_decorator(self) -> Any:
+        """Create a tenacity retry decorator with custom configuration.
+
+        Returns:
+            retry: Configured retry decorator
+        """
+
+        def before_retry(retry_state: tenacity.RetryCallState) -> None:
+            """Log retry attempts."""
+            if retry_state.attempt_number > 1:
+                logger.info(
+                    "Retrying task analysis",
+                    extra={
+                        "attempt": retry_state.attempt_number,
+                        "max_retries": self.max_retries,
+                    },
+                )
+
+        def after_attempt(retry_state: tenacity.RetryCallState) -> None:
+            """Called after each attempt."""
+            if retry_state.outcome and retry_state.outcome.failed:
+                exception = retry_state.outcome.exception()
+                # Update retry count for our custom exceptions
+                if isinstance(exception, LLMCommunicationError | RateLimitError):
+                    exception.retry_count = retry_state.attempt_number
+
+        def determine_wait(retry_state: tenacity.RetryCallState) -> float:
+            """Determine wait time based on error type."""
+            if retry_state.outcome and retry_state.outcome.failed:
+                exception = retry_state.outcome.exception()
+                if isinstance(exception, ValueError):
+                    error_msg = str(exception).lower()
+                    if "rate limit" in error_msg or "too many requests" in error_msg:
+                        # Use longer delay for rate limits
+                        wait_time = min(
+                            self.retry_delay
+                            * (2 ** (retry_state.attempt_number - 1))
+                            * RATE_LIMIT_RETRY_MULTIPLIER,
+                            MAX_RETRY_DELAY,
+                        )
+                        logger.warning(
+                            "Rate limit detected, using extended delay",
+                            extra={"wait_time": wait_time, "attempt": retry_state.attempt_number},
+                        )
+                        return wait_time
+
+            # Default exponential backoff
+            return min(
+                self.retry_delay * (2 ** (retry_state.attempt_number - 1)),
+                MAX_RETRY_DELAY,
+            )
+
+        return retry(
+            retry=retry_if_exception(self._is_retryable_error),
+            stop=stop_after_attempt(self.max_retries),
+            wait=determine_wait,
+            before=before_retry,
+            after=after_attempt,
+            reraise=True,
+        )
+
     async def analyze_task(self, task_description: str, url: str) -> Task:
         """
         Analyze a natural language task description and return a structured Task object.
@@ -114,17 +208,15 @@ class WebTaskAnalyzer:
             },
         )
 
-        last_error: Exception | None = None
+        # Create the retry decorator dynamically
+        retry_decorator = self._create_retry_decorator()
 
-        for attempt in range(self.max_retries):
+        @retry_decorator
+        async def _analyze_with_retry() -> Task:
+            """Inner function that performs the actual analysis with retry logic."""
+            response = ""  # Initialize response for error handling
+            
             try:
-                # Log retry attempt if not the first
-                if attempt > 0:
-                    logger.info(
-                        "Retrying task analysis",
-                        extra={"attempt": attempt + 1, "max_retries": self.max_retries},
-                    )
-
                 # Call the LLM with timeout
                 start_time = time.time()
 
@@ -142,7 +234,6 @@ class WebTaskAnalyzer:
                     extra={
                         "response_length": len(response),
                         "elapsed_time": elapsed_time,
-                        "attempt": attempt + 1,
                     },
                 )
 
@@ -154,26 +245,20 @@ class WebTaskAnalyzer:
 
                 logger.info(
                     "Task analysis completed successfully",
-                    extra={"attempts": attempt + 1, "task_id": id(task)},
+                    extra={"task_id": id(task)},
                 )
 
                 return task
 
             except TimeoutError as e:
-                last_error = e
                 logger.warning(
                     "LLM request timed out",
-                    extra={"timeout": self.timeout, "attempt": attempt + 1},
+                    extra={"timeout": self.timeout},
                 )
-
-                if attempt < self.max_retries - 1:
-                    await self._wait_before_retry(attempt)
-                    continue
-
+                msg = f"LLM request timed out after {self.timeout} seconds"
                 raise LLMCommunicationError(
-                    f"LLM request timed out after {self.timeout} seconds",
+                    msg,
                     original_error=e,
-                    retry_count=attempt + 1,
                 ) from e
 
             except json.JSONDecodeError as e:
@@ -182,66 +267,68 @@ class WebTaskAnalyzer:
                     "Failed to parse LLM response as JSON",
                     extra={"error": str(e), "response_preview": response[:200]},
                 )
+                msg = f"Could not parse LLM response as JSON: {e}"
                 raise InvalidResponseFormatError(
-                    f"Could not parse LLM response as JSON: {e}",
+                    msg,
                     response=response,
                     expected_format="Valid JSON object with task analysis",
                 ) from e
-
-            except (InvalidResponseFormatError, ValidationError):
-                # These are our custom exceptions - don't retry, just re-raise
-                raise
 
             except ValueError as e:
                 # Check if it's a specific error we should handle differently
                 error_msg = str(e).lower()
 
                 if "rate limit" in error_msg or "too many requests" in error_msg:
-                    last_error = e
-                    logger.warning("Rate limit detected", extra={"attempt": attempt + 1})
-
-                    if attempt < self.max_retries - 1:
-                        # Use longer delay for rate limits
-                        await self._wait_before_retry(attempt, multiplier=5.0)
-                        continue
-
+                    logger.warning("Rate limit detected")
+                    msg = "Rate limit exceeded for LLM API"
                     raise RateLimitError(
-                        "Rate limit exceeded for LLM API",
-                        retry_count=attempt + 1,
+                        msg,
                     ) from e
 
                 if "context length" in error_msg or "token limit" in error_msg:
                     # Context length errors are not retryable
+                    msg = "Prompt exceeds LLM context length limit"
                     raise ContextLengthExceededError(
-                        "Prompt exceeds LLM context length limit",
+                        msg,
                         prompt_length=prompt_length,
                     ) from e
                 # Other ValueError types (validation errors) are not retryable
                 raise
 
+            except (InvalidResponseFormatError, ValidationError, ContextLengthExceededError):
+                # These are our custom exceptions - don't wrap them
+                raise
+
             except Exception as e:
-                last_error = e
                 logger.warning(
                     "Unexpected error during task analysis",
-                    extra={"error": str(e), "attempt": attempt + 1, "error_type": type(e).__name__},
+                    extra={"error": str(e), "error_type": type(e).__name__},
                 )
-
-                if attempt < self.max_retries - 1:
-                    await self._wait_before_retry(attempt)
-                    continue
-
+                msg = "Failed to analyze task"
                 raise LLMCommunicationError(
-                    f"Failed to analyze task after {attempt + 1} attempts",
+                    msg,
                     original_error=e,
-                    retry_count=attempt + 1,
                 ) from e
 
-        # This should not be reached, but just in case
-        raise LLMCommunicationError(
-            f"Failed to analyze task after {self.max_retries} attempts",
-            original_error=last_error,
-            retry_count=self.max_retries,
-        )
+        try:
+            return await _analyze_with_retry()
+        except tenacity.RetryError as e:
+            # Extract the last exception from tenacity
+            last_exception = e.last_attempt.exception() if e.last_attempt else None
+            attempts = e.last_attempt.attempt_number if e.last_attempt else self.max_retries
+
+            if isinstance(last_exception, RateLimitError | LLMCommunicationError):
+                # Update retry count in our custom exceptions
+                last_exception.retry_count = attempts
+                raise last_exception from e
+
+            # Wrap other exceptions in LLMCommunicationError
+            msg = f"Failed to analyze task after {attempts} attempts"
+            raise LLMCommunicationError(
+                msg,
+                original_error=last_exception if isinstance(last_exception, Exception) else None,
+                retry_count=attempts,
+            ) from last_exception
 
     def _build_analysis_prompt(self, task_description: str, url: str) -> str:
         """
@@ -256,24 +343,6 @@ class WebTaskAnalyzer:
         """
         prompt_template = self.prompt_config["prompt"]
         return prompt_template.format(url=url, task_description=task_description)
-
-    async def _wait_before_retry(self, attempt: int, multiplier: float = 1.0) -> None:
-        """
-        Wait before retrying with exponential backoff.
-
-        Args:
-            attempt: The current attempt number (0-based)
-            multiplier: Multiplier for the delay (e.g., 5.0 for rate limits)
-        """
-        # Calculate delay with exponential backoff
-        delay = min(self.retry_delay * (2**attempt) * multiplier, MAX_RETRY_DELAY)
-
-        logger.info(
-            "Waiting before retry",
-            extra={"delay": delay, "attempt": attempt + 1},
-        )
-
-        await asyncio.sleep(delay)
 
     def _parse_llm_response(self, response: str) -> dict[str, Any]:
         """
@@ -339,16 +408,18 @@ class WebTaskAnalyzer:
 
         # Ensure lists have required minimum items
         if not data.get("objectives") or len(data["objectives"]) == 0:
+            msg = "Field 'objectives' must contain at least one item"
             raise ValidationError(
-                "Field 'objectives' must contain at least one item",
+                msg,
                 field="objectives",
                 value=data.get("objectives"),
                 expected_type="Non-empty list of strings",
             )
 
         if not data.get("success_criteria") or len(data["success_criteria"]) == 0:
+            msg = "Field 'success_criteria' must contain at least one item"
             raise ValidationError(
-                "Field 'success_criteria' must contain at least one item",
+                msg,
                 field="success_criteria",
                 value=data.get("success_criteria"),
                 expected_type="Non-empty list of strings",
@@ -378,8 +449,9 @@ class WebTaskAnalyzer:
         """
         # Validate string fields
         if not isinstance(data.get("description"), str):
+            msg = "Field 'description' must be a string"
             raise ValidationError(
-                "Field 'description' must be a string",
+                msg,
                 field="description",
                 value=data.get("description"),
                 expected_type="string",
@@ -389,8 +461,9 @@ class WebTaskAnalyzer:
         list_fields = ["objectives", "success_criteria", "constraints"]
         for field in list_fields:
             if field in data and not isinstance(data[field], list):
+                msg = f"Field '{field}' must be a list"
                 raise ValidationError(
-                    f"Field '{field}' must be a list",
+                    msg,
                     field=field,
                     value=data[field],
                     expected_type="list of strings",
@@ -400,8 +473,9 @@ class WebTaskAnalyzer:
             if data.get(field):
                 for i, item in enumerate(data[field]):
                     if not isinstance(item, str):
+                        msg = f"Item {i} in field '{field}' must be a string"
                         raise ValidationError(
-                            f"Item {i} in field '{field}' must be a string",
+                            msg,
                             field=f"{field}[{i}]",
                             value=item,
                             expected_type="string",
@@ -411,17 +485,19 @@ class WebTaskAnalyzer:
         optional_list_fields = ["data_to_extract", "actions_to_perform"]
         for field in optional_list_fields:
             if field in data and data[field] is not None and not isinstance(data[field], list):
-                    raise ValidationError(
-                        f"Field '{field}' must be a list or null",
-                        field=field,
-                        value=data[field],
-                        expected_type="list of strings or null",
-                    )
+                msg = f"Field '{field}' must be a list or null"
+                raise ValidationError(
+                    msg,
+                    field=field,
+                    value=data[field],
+                    expected_type="list of strings or null",
+                )
 
         # Validate context is a dictionary
         if "context" in data and not isinstance(data["context"], dict):
+            msg = "Field 'context' must be a dictionary"
             raise ValidationError(
-                "Field 'context' must be a dictionary",
+                msg,
                 field="context",
                 value=data["context"],
                 expected_type="dictionary",

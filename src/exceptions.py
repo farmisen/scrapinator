@@ -97,7 +97,7 @@ class LLMCommunicationError(TaskAnalysisError):
             original_error: The underlying exception that caused this error
             retry_count: Number of retry attempts made
         """
-        details = {"retry_count": retry_count}
+        details: dict[str, Any] = {"retry_count": retry_count}
         if original_error is not None:
             details["original_error"] = str(original_error)
             details["error_type"] = type(original_error).__name__

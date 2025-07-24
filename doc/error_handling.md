@@ -111,7 +111,7 @@ except ContextLengthExceededError as e:
 
 ## Retry Configuration
 
-The WebTaskAnalyzer supports configurable retry behavior:
+The WebTaskAnalyzer uses the `tenacity` library for robust retry logic with configurable behavior:
 
 ```python
 analyzer = WebTaskAnalyzer(
@@ -128,6 +128,7 @@ analyzer = WebTaskAnalyzer(
 2. **Maximum delay**: Capped at 60 seconds
 3. **Rate limit multiplier**: 5x normal delay for rate limits
 4. **Not retryable**: Validation errors, format errors, context length errors
+5. **Automatic retry count tracking**: Exceptions include the attempt count
 
 ### Example Retry Timeline
 
@@ -168,6 +169,38 @@ logger.info(
 )
 ```
 
+## Implementation Details
+
+### Tenacity Integration
+
+The retry logic is implemented using the `tenacity` library, which provides:
+
+- **Custom retry conditions**: The `_is_retryable_error` method determines which exceptions trigger retries
+- **Dynamic wait strategies**: Wait times adjust based on error type (e.g., longer waits for rate limits)
+- **Automatic retry count tracking**: Each attempt is tracked and included in exception details
+- **Before/after hooks**: Logging and exception updates happen automatically
+
+### Retry Decision Flow
+
+```python
+def _is_retryable_error(self, exception: BaseException) -> bool:
+    # Non-retryable errors are explicitly checked
+    if isinstance(exception, 
+        InvalidResponseFormatError | ValidationError | 
+        ContextLengthExceededError | json.JSONDecodeError
+    ):
+        return False
+    
+    # Special handling for ValueError
+    if isinstance(exception, ValueError):
+        error_msg = str(exception).lower()
+        if "context length" in error_msg or "token limit" in error_msg:
+            return False
+    
+    # All other errors are retryable
+    return True
+```
+
 ## Best Practices
 
 1. **Catch specific exceptions** when you need to handle different errors differently
@@ -175,6 +208,7 @@ logger.info(
 3. **Consider retry configuration** based on your LLM provider's limits
 4. **Monitor for patterns** in validation errors to improve prompts
 5. **Use timeouts** appropriate for your task complexity
+6. **Let tenacity handle retries** - don't implement manual retry loops
 
 ## Example Usage
 
