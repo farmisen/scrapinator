@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  checks:
+    name: ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # Continue running all jobs even if one fails
+      matrix:
+        check: [lint, format, type-check, test]
+        include:
+          - check: lint
+            name: "Lint (Ruff)"
+          - check: format
+            name: "Format Check (Ruff)"
+          - check: type-check
+            name: "Type Check (Pyright)"
+          - check: test
+            name: "Tests (Pytest)"
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          
+      - name: Cache uv and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.cargo/bin/uv
+            .venv
+          key: ${{ runner.os }}-python-${{ matrix.check }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ matrix.check }}-
+            ${{ runner.os }}-python-
+            
+      - name: Install dependencies
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv pip install -e ".[dev]"
+          
+      - name: Run ${{ matrix.name }}
+        run: |
+          source .venv/bin/activate
+          make ${{ matrix.check }}
+          
+      # Job-specific output formatting
+      - name: Upload test results
+        if: matrix.check == 'test' && failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            .pytest_cache/
+            htmlcov/
+          retention-days: 7
