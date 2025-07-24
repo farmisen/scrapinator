@@ -206,3 +206,13 @@ __marimo__/
 .streamlit/secrets.toml
 
 uv.lock
+
+# VCR.py cassettes (contain API responses)
+tests/integration/cassettes/
+*.yaml
+*.yml
+
+# Local configuration (already included above but being explicit)
+.env
+.env.local
+.env.*.local
