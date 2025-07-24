@@ -26,7 +26,9 @@ classifiers = [
 dependencies = [
     "playwright>=1.40.0",
     "requests>=2.31.0",
-    "magentic>=0.20.0",
+    "langchain>=0.3.0",
+    "langchain-anthropic>=0.3.0",
+    "langchain-openai>=0.2.0",
     "anthropic>=0.18.0",
     "openai>=1.0.0",
     "beautifulsoup4>=4.12.0",
@@ -68,7 +70,7 @@ packages = ["src"]
 src = ["*.json", "*.md"]
 
 [tool.ruff]
-target-version = "py38"
+target-version = "py312"
 line-length = 100
 fix = true
 
@@ -131,7 +133,7 @@ ignore = [
 "__init__.py" = ["F401"]
 
 [tool.ruff.lint.isort]
-known-third-party = ["selenium", "requests", "bs4", "magentic", "anthropic", "pydantic"]
+known-third-party = ["selenium", "requests", "bs4", "langchain", "langchain_anthropic", "langchain_openai", "anthropic", "openai", "pydantic"]
 
 [tool.ruff.lint.flake8-annotations]
 allow-star-arg-any = true

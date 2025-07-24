@@ -3,10 +3,11 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Protocol
 
+from src.llm_provider import LLMProvider
 from src.models.task import Task
-from src.prompts.task_analysis import TASK_ANALYSIS_PROMPT
+from src.prompts.task_analysis import get_prompt_config
 from src.utils.json_utils import extract_json_from_text, normalize_optional_fields
 
 logger = logging.getLogger(__name__)
@@ -26,16 +27,41 @@ class LLMClient(Protocol):
 class WebTaskAnalyzer:
     """Analyzes natural language task descriptions and converts them to structured Task objects."""
 
-    def __init__(self, llm_client: LLMClient, timeout: Optional[float] = 30.0) -> None:
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        timeout: float | None = 30.0,
+        provider: str = LLMProvider.ANTHROPIC.value,
+    ) -> None:
         """
         Initialize the WebTaskAnalyzer with an LLM client.
 
         Args:
             llm_client: The LLM client instance to use for analysis
             timeout: Maximum time in seconds to wait for LLM response (default: 30.0)
+            provider: LLM provider name for prompt configuration (default: "anthropic")
+                     Valid values: "anthropic", "openai"
+                     Falls back to "anthropic" if invalid provider is specified
+
+        Note:
+            The prompt configuration includes recommended settings for temperature
+            and max_tokens, but these must be implemented by the LLM client.
+            The system_message in the config should be passed to the LLM if supported.
         """
         self.llm = llm_client
         self.timeout = timeout
+
+        # Validate provider and fall back to default if invalid
+        if not LLMProvider.is_valid(provider):
+            logger.warning(
+                "Invalid provider '%s' specified. Falling back to '%s'",
+                provider,
+                LLMProvider.ANTHROPIC.value,
+            )
+            provider = LLMProvider.ANTHROPIC.value
+
+        self.provider = provider
+        self.prompt_config = get_prompt_config(provider)
 
     async def analyze_task(self, task_description: str, url: str) -> Task:
         """
@@ -71,7 +97,7 @@ class WebTaskAnalyzer:
             # Create and return the Task object
             return Task(**task_data)
 
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             logger.exception("LLM request timed out after %s seconds", self.timeout)
             error_msg = f"LLM request timed out after {self.timeout} seconds"
             raise TimeoutError(error_msg) from e
@@ -94,9 +120,10 @@ class WebTaskAnalyzer:
         Returns:
             str: The formatted prompt for the LLM
         """
-        return TASK_ANALYSIS_PROMPT.format(url=url, task_description=task_description)
+        prompt_template = self.prompt_config["prompt"]
+        return prompt_template.format(url=url, task_description=task_description)
 
-    def _parse_llm_response(self, response: str) -> Dict[str, Any]:
+    def _parse_llm_response(self, response: str) -> dict[str, Any]:
         """
         Parse the LLM response into a dictionary suitable for Task creation.
 

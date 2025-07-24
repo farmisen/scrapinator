@@ -1,6 +1,6 @@
 """Task model for representing web automation tasks."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,30 +18,30 @@ class Task(BaseModel):
         ..., description="The original natural language task description provided by the user"
     )
 
-    objectives: List[str] = Field(
+    objectives: list[str] = Field(
         ..., min_length=1, description="List of main objectives to accomplish in the task"
     )
 
-    constraints: List[str] = Field(
+    constraints: list[str] = Field(
         default_factory=list,
         description="List of constraints or limitations that must be respected during execution",
     )
 
-    success_criteria: List[str] = Field(
+    success_criteria: list[str] = Field(
         ...,
         min_length=1,
         description="List of criteria that determine if the task has been completed successfully",
     )
 
-    data_to_extract: Optional[List[str]] = Field(
+    data_to_extract: list[str] | None = Field(
         None, description="Optional list of specific data items to extract from web pages"
     )
 
-    actions_to_perform: Optional[List[str]] = Field(
+    actions_to_perform: list[str] | None = Field(
         None, description="Optional list of specific actions to perform (click, fill, submit, etc.)"
     )
 
-    context: Dict[str, Any] = Field(
+    context: dict[str, Any] = Field(
         default_factory=dict,
         description="Additional context information that might be useful for task execution",
     )
