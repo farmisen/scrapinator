@@ -52,8 +52,8 @@ class LangChainLLMClient:
         if provider == LLMProvider.ANTHROPIC.value:
             default_model = "claude-3-opus-20240229"
             # Note: langchain-anthropic uses different parameter names
-            self.model = ChatAnthropic(  # pyright: ignore[reportCallIssue]
-                model=model_name or default_model,
+            self.model = ChatAnthropic(
+                model=model_name or default_model,  # pyright: ignore[reportCallIssue]
                 temperature=temperature,
                 max_tokens_to_sample=max_tokens,
             )
@@ -124,8 +124,8 @@ class LangChainLLMClient:
             max_tok = max_tokens if max_tokens is not None else self.max_tokens
 
             if self.provider == LLMProvider.ANTHROPIC.value:
-                model = ChatAnthropic(  # pyright: ignore[reportCallIssue]
-                    model=self.model_name or "claude-3-opus-20240229",
+                model = ChatAnthropic(
+                    model=self.model_name or "claude-3-opus-20240229",  # pyright: ignore[reportCallIssue]
                     temperature=temp,
                     max_tokens_to_sample=max_tok,
                 )

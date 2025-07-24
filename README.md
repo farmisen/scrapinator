@@ -1,5 +1,7 @@
 # Scrapinator - Web Task Automation System
 
+[![CI](https://github.com/farmisen/scrapinator/actions/workflows/ci.yml/badge.svg)](https://github.com/farmisen/scrapinator/actions/workflows/ci.yml)
+
 An intelligent web automation system that uses LLM (Large Language Model) to understand natural language tasks and automatically creates browser automation scripts. Just provide a URL and describe what you want to do - Scrapinator figures out the rest!
 
 ## 🚀 Features
@@ -138,6 +140,23 @@ If you encounter the error `make: function definition file not found`, this is l
 ./make.sh format
 # etc.
 ```
+
+## 🔄 Continuous Integration
+
+This project uses GitHub Actions for continuous integration. The CI workflow automatically runs on:
+- Push to the main branch
+- Pull requests to the main branch
+- Manual workflow dispatch
+
+### CI Checks
+
+The CI runs the following checks in parallel for optimal performance:
+- **Lint**: Code style validation using Ruff
+- **Format**: Code formatting verification using Ruff
+- **Type Check**: Static type analysis using Pyright
+- **Test**: Unit test execution using pytest
+
+All checks must pass for a PR to be merged. The CI status is displayed at the top of this README.
 
 ## 📚 Example Tasks
 
