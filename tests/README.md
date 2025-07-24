@@ -70,14 +70,20 @@ Integration tests require API keys to be set as environment variables:
 export ANTHROPIC_API_KEY="your-anthropic-key"
 export OPENAI_API_KEY="your-openai-key"
 
-# Run integration tests
-uv run pytest tests/integration -v -m integration
+# Run integration tests without recording (recommended for initial testing)
+uv run pytest tests/integration -v -m integration --disable-recording
+
+# Run specific provider tests
+uv run pytest tests/integration -v -m integration -k "anthropic and not openai" --disable-recording
+
+# Once all tests pass, record cassettes
+uv run pytest tests/integration -v -m integration --record-mode=once
 
 # Run with coverage
 uv run pytest tests/integration -v -m integration --cov=src
 
-# Run with specific recording mode
-uv run pytest tests/integration -v -m integration --record-mode=once
+# Use recorded cassettes for CI/CD
+uv run pytest tests/integration -v -m integration --record-mode=none
 ```
 
 ### VCR.py Recording Modes
