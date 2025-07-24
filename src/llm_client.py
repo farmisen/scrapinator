@@ -1,26 +1,28 @@
-"""LLM client implementations using magentic."""
+"""LLM client implementations using langchain."""
 
 import os
-from typing import Optional
+from typing import Optional, cast
 
-from magentic import prompt
-from magentic.chat_model.anthropic_chat_model import AnthropicChatModel
-from magentic.chat_model.openai_chat_model import OpenaiChatModel
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 
 from src.llm_provider import LLMProvider
 
 
-class MagenticLLMClient:
-    """LLM client implementation using the magentic library."""
+class LangChainLLMClient:
+    """LLM client implementation using the langchain library."""
 
     def __init__(
         self,
         provider: str = LLMProvider.ANTHROPIC.value,
         model_name: Optional[str] = None,
         api_key: Optional[str] = None,
+        temperature: float = 0.3,
+        max_tokens: int = 1000,
     ) -> None:
         """
-        Initialize the LLM client with magentic.
+        Initialize the LLM client with langchain.
 
         Args:
             provider: The LLM provider to use ("anthropic", "openai")
@@ -28,13 +30,18 @@ class MagenticLLMClient:
                        If None, uses default model for the provider
             api_key: API key for the provider. If None, reads from environment variables
                     (ANTHROPIC_API_KEY or OPENAI_API_KEY)
+            temperature: Temperature setting for response randomness (default: 0.3)
+            max_tokens: Maximum tokens in the response (default: 1000)
 
         Raises:
             ValueError: If an unsupported provider is specified
         """
         self.provider = provider
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.model_name = model_name
 
-        # Set up API key
+        # Set API key in environment if provided
         if api_key:
             if provider == LLMProvider.ANTHROPIC.value:
                 os.environ["ANTHROPIC_API_KEY"] = api_key
@@ -44,10 +51,19 @@ class MagenticLLMClient:
         # Initialize the appropriate model
         if provider == LLMProvider.ANTHROPIC.value:
             default_model = "claude-3-opus-20240229"
-            self.model = AnthropicChatModel(model_name or default_model)
+            # Note: langchain-anthropic uses different parameter names
+            self.model = ChatAnthropic(  # pyright: ignore[reportCallIssue]
+                model=model_name or default_model,
+                temperature=temperature,
+                max_tokens_to_sample=max_tokens,
+            )
         elif provider == LLMProvider.OPENAI.value:
             default_model = "gpt-4"
-            self.model = OpenaiChatModel(model_name or default_model)
+            self.model = ChatOpenAI(  # type: ignore[call-arg]
+                model=model_name or default_model,
+                temperature=temperature,
+                max_completion_tokens=max_tokens,
+            )
         else:
             error_msg = f"Unsupported provider: {provider}"
             raise ValueError(error_msg)
@@ -64,20 +80,22 @@ class MagenticLLMClient:
         Returns:
             The LLM's response as a string
         """
+        # Create a message with the prompt
+        messages = [HumanMessage(content=prompt_text)]
 
-        # Create a dynamic prompt function using magentic
-        @prompt(prompt_text)
-        def _complete() -> str: ...
+        # Use ainvoke for async operation
+        response = await self.model.ainvoke(messages)
 
-        # Execute the prompt (magentic handles async internally)
-        return _complete()
+        # Extract and return the string content
+        # LangChain returns AIMessage with content attribute
+        return cast("str", response.content)
 
     def complete_with_config(
         self,
         prompt_text: str,
-        system_message: Optional[str] = None,  # noqa: ARG002
-        temperature: Optional[float] = None,  # noqa: ARG002
-        max_tokens: Optional[int] = None,  # noqa: ARG002
+        system_message: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
     ) -> str:
         """
         Complete a prompt with additional configuration options.
@@ -92,16 +110,34 @@ class MagenticLLMClient:
 
         Returns:
             The LLM's response as a string
-
-        Note:
-            Not all models support all configuration options. The implementation
-            will use what's available for each model.
         """
+        # Build messages list
+        messages = []
+        if system_message:
+            messages.append(SystemMessage(content=system_message))
+        messages.append(HumanMessage(content=prompt_text))
 
-        # For now, we use the simple completion
-        # In a full implementation, these parameters would be passed to the model
-        # magentic's API for these advanced features is still evolving
-        @prompt(prompt_text)
-        def _complete() -> str: ...
+        # Create a new model instance with custom parameters if provided
+        if temperature is not None or max_tokens is not None:
+            # Use provided values or fall back to instance defaults
+            temp = temperature if temperature is not None else self.temperature
+            max_tok = max_tokens if max_tokens is not None else self.max_tokens
 
-        return _complete()
+            if self.provider == LLMProvider.ANTHROPIC.value:
+                model = ChatAnthropic(  # pyright: ignore[reportCallIssue]
+                    model=self.model_name or "claude-3-opus-20240229",
+                    temperature=temp,
+                    max_tokens_to_sample=max_tok,
+                )
+            else:  # OpenAI
+                model = ChatOpenAI(  # type: ignore[call-arg]
+                    model=self.model_name or "gpt-4",
+                    temperature=temp,
+                    max_completion_tokens=max_tok,
+                )
+        else:
+            model = self.model
+
+        # Synchronous invoke
+        response = model.invoke(messages)
+        return cast("str", response.content)

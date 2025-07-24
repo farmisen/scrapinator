@@ -40,7 +40,7 @@ class WebTaskAnalyzer:
             llm_client: The LLM client instance to use for analysis
             timeout: Maximum time in seconds to wait for LLM response (default: 30.0)
             provider: LLM provider name for prompt configuration (default: "anthropic")
-                     Valid values: "anthropic", "openai", "compact"
+                     Valid values: "anthropic", "openai"
                      Falls back to "anthropic" if invalid provider is specified
 
         Note:

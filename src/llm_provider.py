@@ -8,7 +8,6 @@ class LLMProvider(Enum):
 
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
-    COMPACT = "compact"  # For models with smaller context windows
 
     @classmethod
     def is_valid(cls, value: str) -> bool:

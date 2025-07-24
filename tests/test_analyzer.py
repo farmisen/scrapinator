@@ -231,10 +231,6 @@ class TestWebTaskAnalyzer:
         assert analyzer_default.provider == "anthropic"
         assert "examples" in analyzer_default.prompt_config["prompt"].lower()
         
-        # Test compact provider
-        analyzer_compact = WebTaskAnalyzer(mock_llm_client, provider="compact")
-        assert analyzer_compact.provider == "compact"
-        assert len(analyzer_compact.prompt_config["prompt"]) < 1000
         
         # Test openai provider
         analyzer_openai = WebTaskAnalyzer(mock_llm_client, provider="openai")
@@ -243,12 +239,10 @@ class TestWebTaskAnalyzer:
 
     def test_build_prompt_uses_provider_config(self, mock_llm_client):
         """Test that prompt building uses the correct provider template."""
-        # Test with compact provider
-        analyzer = WebTaskAnalyzer(mock_llm_client, provider="compact")
+        # Test with openai provider
+        analyzer = WebTaskAnalyzer(mock_llm_client, provider="openai")
         prompt = analyzer._build_analysis_prompt("Test task", "https://example.com")
         
-        # Compact prompt should have specific markers
-        assert "Required JSON structure:" in prompt
-        assert "Rules:" in prompt
-        # Should NOT have the examples from the full prompt
-        assert "Example 1:" not in prompt
+        # Should have the examples from the full prompt
+        assert "Example 1:" in prompt
+        assert "Important guidelines:" in prompt

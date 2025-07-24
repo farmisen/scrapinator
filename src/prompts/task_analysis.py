@@ -171,31 +171,6 @@ Important guidelines:
 
 Return only the JSON response, no additional text or explanation."""
 
-# Optimized prompt for models with smaller context windows
-TASK_ANALYSIS_PROMPT_COMPACT = """Analyze this web automation task and return a JSON response.
-
-URL: {url}
-Task: {task_description}
-
-Required JSON structure:
-{{
-    "description": "original task",
-    "objectives": ["list of steps to accomplish"],
-    "success_criteria": ["how to know when done"],
-    "data_to_extract": ["data to collect"] or null,
-    "actions_to_perform": ["user actions needed"] or null,
-    "constraints": ["limitations or requirements"],
-    "context": {{"additional": "key-value pairs"}}
-}}
-
-Rules:
-- objectives and success_criteria need at least 1 item
-- data_to_extract: null if no data collection
-- actions_to_perform: null if only extracting data
-- constraints: can be empty list
-- context: can be empty object
-
-Return only JSON, no text."""
 
 # Provider-specific prompt configurations
 # Note: temperature and max_tokens are recommended settings for LLM client implementations
@@ -213,12 +188,6 @@ PROVIDER_CONFIGS = {
         "temperature": 0.3,  # Recommended for consistent, focused responses
         "max_tokens": 1000,  # Recommended limit for response size
     },
-    LLMProvider.COMPACT.value: {
-        "prompt": TASK_ANALYSIS_PROMPT_COMPACT,
-        "system_message": "Analyze web tasks. Return only JSON.",
-        "temperature": 0.3,  # Recommended for consistent, focused responses
-        "max_tokens": 500,  # Reduced limit for compact models
-    },
 }
 
 
@@ -227,7 +196,7 @@ def get_prompt_config(provider: str = LLMProvider.ANTHROPIC.value) -> Dict[str, 
     Get prompt configuration for a specific LLM provider.
 
     Args:
-        provider: The LLM provider name ('anthropic', 'openai', 'compact')
+        provider: The LLM provider name ('anthropic', 'openai')
 
     Returns:
         Dictionary with prompt configuration

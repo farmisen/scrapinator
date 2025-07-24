@@ -8,7 +8,7 @@ The prompt template system provides structured prompts for LLMs to analyze natur
 
 ## Providers
 
-The system supports three provider configurations:
+The system supports two provider configurations:
 
 ### 1. Anthropic (Default)
 - **Provider ID**: `anthropic`
@@ -24,11 +24,6 @@ The system supports three provider configurations:
 - **Max Tokens**: 1000
 - **Use When**: You're using OpenAI's API infrastructure
 
-### 3. Compact
-- **Provider ID**: `compact`
-- **Characteristics**: Compressed prompt for smaller context windows
-- **Max Tokens**: 500
-- **Use When**: Working with models that have limited context windows or when minimizing token usage
 
 ## Usage
 
@@ -36,16 +31,16 @@ The system supports three provider configurations:
 
 ```python
 from src.analyzer import WebTaskAnalyzer
-from src.llm_client import MagenticLLMClient
+from src.llm_client import LangChainLLMClient
 
 # Create LLM client
-llm_client = MagenticLLMClient(provider="anthropic")
+llm_client = LangChainLLMClient(provider="anthropic")
 
 # Create analyzer with default provider (anthropic)
 analyzer = WebTaskAnalyzer(llm_client)
 
 # Or specify a different provider
-analyzer = WebTaskAnalyzer(llm_client, provider="compact")
+analyzer = WebTaskAnalyzer(llm_client, provider="openai")
 
 # Analyze a task
 task = await analyzer.analyze_task(
@@ -63,8 +58,6 @@ analyzer = WebTaskAnalyzer(llm_client, provider="anthropic")
 # For OpenAI (GPT-4)
 analyzer = WebTaskAnalyzer(llm_client, provider="openai")
 
-# For compact mode (smaller models)
-analyzer = WebTaskAnalyzer(llm_client, provider="compact")
 ```
 
 ## Prompt Structure
@@ -128,7 +121,7 @@ To add a new provider:
 
 ## Best Practices
 
-1. **Choose the Right Provider**: Use full prompts for complex tasks, compact for simple ones
-2. **Monitor Token Usage**: The compact variant uses ~70% fewer tokens
+1. **Choose the Right Provider**: Use Anthropic for Claude models, OpenAI for GPT models
+2. **Monitor Token Usage**: Both providers use similar token counts
 3. **Test with Examples**: Verify your LLM client handles the prompt format correctly
 4. **Handle Timeouts**: Set appropriate timeouts for your use case (default: 30s)
