@@ -219,12 +219,24 @@ If you see authentication errors when running integration tests:
    - Verify keys are active in the provider's dashboard
    - Ensure keys have appropriate permissions
 
+### Rate Limiting Issues
+
+Some tests may fail when running all integration tests together due to API rate limits. To address this:
+
+1. **Run tests with delays**: Tests automatically include 2-second delays between tests
+2. **Run tests individually**: If a test fails in bulk, try running it alone:
+   ```bash
+   pytest tests/integration/test_task_analyzer_e2e.py::TestTaskAnalyzerE2E::test_name -v --disable-recording
+   ```
+3. **Expected failures**: Some tests are marked as `xfail` due to rate limiting when run in bulk
+
 ### Common Issues
 
 - **Deprecation warnings**: Update model names in `src/llm_client.py`
 - **Rate limits**: Reduce test parallelism or add delays
 - **Timeout errors**: Increase timeout in test configuration
 - **Cassette mismatches**: Delete and re-record when API changes
+- **OpenAI tests skipped**: Set `OPENAI_API_KEY` environment variable to run OpenAI tests
 
 ## Contributing
 
