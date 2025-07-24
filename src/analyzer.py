@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Protocol
 
 from src.llm_provider import LLMProvider
 from src.models.task import Task
@@ -30,7 +30,7 @@ class WebTaskAnalyzer:
     def __init__(
         self,
         llm_client: LLMClient,
-        timeout: Optional[float] = 30.0,
+        timeout: float | None = 30.0,
         provider: str = LLMProvider.ANTHROPIC.value,
     ) -> None:
         """
@@ -97,7 +97,7 @@ class WebTaskAnalyzer:
             # Create and return the Task object
             return Task(**task_data)
 
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             logger.exception("LLM request timed out after %s seconds", self.timeout)
             error_msg = f"LLM request timed out after {self.timeout} seconds"
             raise TimeoutError(error_msg) from e
@@ -123,7 +123,7 @@ class WebTaskAnalyzer:
         prompt_template = self.prompt_config["prompt"]
         return prompt_template.format(url=url, task_description=task_description)
 
-    def _parse_llm_response(self, response: str) -> Dict[str, Any]:
+    def _parse_llm_response(self, response: str) -> dict[str, Any]:
         """
         Parse the LLM response into a dictionary suitable for Task creation.
 

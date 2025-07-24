@@ -1,6 +1,6 @@
 """Prompt templates for task analysis."""
 
-from typing import Any, Dict
+from typing import Any
 
 from src.llm_provider import LLMProvider
 
@@ -191,7 +191,7 @@ PROVIDER_CONFIGS = {
 }
 
 
-def get_prompt_config(provider: str = LLMProvider.ANTHROPIC.value) -> Dict[str, Any]:
+def get_prompt_config(provider: str = LLMProvider.ANTHROPIC.value) -> dict[str, Any]:
     """
     Get prompt configuration for a specific LLM provider.
 

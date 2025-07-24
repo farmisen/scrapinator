@@ -3,12 +3,12 @@
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
+def extract_json_from_text(text: str) -> dict[str, Any] | None:
     """
     Extract JSON object from text that may contain additional content.
 
@@ -79,7 +79,7 @@ def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def normalize_optional_fields(data: Dict[str, Any], fields: List[str]) -> Dict[str, Any]:
+def normalize_optional_fields(data: dict[str, Any], fields: list[str]) -> dict[str, Any]:
     """
     Normalize optional fields that might be represented as null strings or empty lists.
 

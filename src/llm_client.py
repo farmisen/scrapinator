@@ -1,7 +1,7 @@
 """LLM client implementations using langchain."""
 
 import os
-from typing import Optional, cast
+from typing import cast
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -16,8 +16,8 @@ class LangChainLLMClient:
     def __init__(
         self,
         provider: str = LLMProvider.ANTHROPIC.value,
-        model_name: Optional[str] = None,
-        api_key: Optional[str] = None,
+        model_name: str | None = None,
+        api_key: str | None = None,
         temperature: float = 0.3,
         max_tokens: int = 1000,
     ) -> None:
@@ -93,9 +93,9 @@ class LangChainLLMClient:
     def complete_with_config(
         self,
         prompt_text: str,
-        system_message: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        system_message: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         """
         Complete a prompt with additional configuration options.
