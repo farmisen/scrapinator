@@ -16,7 +16,7 @@
   "reportMissingImports": true,
   "reportMissingTypeStubs": false,
   "reportMissingModuleSource": false,
-  "pythonVersion": "3.8",
+  "pythonVersion": "3.12",
   "pythonPlatform": "Linux",
   "typeCheckingMode": "strict",
   "useLibraryCodeForTypes": true,
@@ -55,7 +55,7 @@
   "executionEnvironments": [
     {
       "root": "src",
-      "pythonVersion": "3.8",
+      "pythonVersion": "3.12",
       "pythonPlatform": "Linux",
       "extraPaths": []
     }
