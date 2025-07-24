@@ -100,7 +100,10 @@ class WebTaskAnalyzer:
         # Non-retryable errors
         if isinstance(
             exception,
-            InvalidResponseFormatError | ValidationError | ContextLengthExceededError | json.JSONDecodeError,
+            InvalidResponseFormatError
+            | ValidationError
+            | ContextLengthExceededError
+            | json.JSONDecodeError,
         ):
             return False
 
@@ -174,6 +177,96 @@ class WebTaskAnalyzer:
             reraise=True,
         )
 
+    async def _perform_llm_call(self, prompt: str) -> str:
+        """Perform the LLM API call with timeout handling.
+
+        Args:
+            prompt: The prompt to send to the LLM
+
+        Returns:
+            str: The LLM response
+
+        Raises:
+            TimeoutError: If the request times out
+        """
+        start_time = time.time()
+
+        if self.timeout:
+            response = await asyncio.wait_for(self.llm.complete(prompt), timeout=self.timeout)
+        else:
+            response = await self.llm.complete(prompt)
+
+        elapsed_time = time.time() - start_time
+
+        logger.info(
+            "Received LLM response",
+            extra={
+                "response_length": len(response),
+                "elapsed_time": elapsed_time,
+            },
+        )
+
+        return response
+
+    async def _handle_llm_response(self, response: str, prompt_length: int) -> Task:
+        """Handle the LLM response, including error processing.
+
+        Args:
+            response: The raw LLM response
+            prompt_length: Length of the original prompt
+
+        Returns:
+            Task: The parsed and validated task
+
+        Raises:
+            Various exceptions based on response content
+        """
+        try:
+            # Parse and validate the response
+            task_data = self._parse_llm_response(response)
+
+            # Create and validate the Task object
+            task = Task(**task_data)
+
+        except json.JSONDecodeError as e:
+            # JSON decode errors are not retryable
+            logger.exception(
+                "Failed to parse LLM response as JSON",
+                extra={"error": str(e), "response_preview": response[:200]},
+            )
+            msg = f"Could not parse LLM response as JSON: {e}"
+            raise InvalidResponseFormatError(
+                msg,
+                response=response,
+                expected_format="Valid JSON object with task analysis",
+            ) from e
+
+        except ValueError as e:
+            # Check if it's a specific error we should handle differently
+            error_msg = str(e).lower()
+
+            if "rate limit" in error_msg or "too many requests" in error_msg:
+                logger.warning("Rate limit detected")
+                msg = "Rate limit exceeded for LLM API"
+                raise RateLimitError(msg) from e
+
+            if "context length" in error_msg or "token limit" in error_msg:
+                # Context length errors are not retryable
+                msg = "Prompt exceeds LLM context length limit"
+                raise ContextLengthExceededError(
+                    msg,
+                    prompt_length=prompt_length,
+                ) from e
+            # Other ValueError types (validation errors) are not retryable
+            raise
+        else:
+            # Success case - log and return
+            logger.info(
+                "Task analysis completed successfully",
+                extra={"task_id": id(task)},
+            )
+            return task
+
     async def analyze_task(self, task_description: str, url: str) -> Task:
         """
         Analyze a natural language task description and return a structured Task object.
@@ -214,41 +307,22 @@ class WebTaskAnalyzer:
         @retry_decorator
         async def _analyze_with_retry() -> Task:
             """Inner function that performs the actual analysis with retry logic."""
-            response = ""  # Initialize response for error handling
-            
             try:
                 # Call the LLM with timeout
-                start_time = time.time()
+                response = await self._perform_llm_call(prompt)
 
-                if self.timeout:
-                    response = await asyncio.wait_for(
-                        self.llm.complete(prompt), timeout=self.timeout
-                    )
-                else:
-                    response = await self.llm.complete(prompt)
+                # Process the response
+                return await self._handle_llm_response(response, prompt_length)
 
-                elapsed_time = time.time() - start_time
-
-                logger.info(
-                    "Received LLM response",
-                    extra={
-                        "response_length": len(response),
-                        "elapsed_time": elapsed_time,
-                    },
-                )
-
-                # Parse and validate the response
-                task_data = self._parse_llm_response(response)
-
-                # Create and validate the Task object
-                task = Task(**task_data)
-
-                logger.info(
-                    "Task analysis completed successfully",
-                    extra={"task_id": id(task)},
-                )
-
-                return task
+            except ValueError as e:
+                # Check if it's a rate limit error
+                error_msg = str(e).lower()
+                if "rate limit" in error_msg or "too many requests" in error_msg:
+                    logger.warning("Rate limit detected")
+                    msg = "Rate limit exceeded for LLM API"
+                    raise RateLimitError(msg) from e
+                # Re-raise other ValueErrors
+                raise
 
             except TimeoutError as e:
                 logger.warning(
@@ -256,44 +330,7 @@ class WebTaskAnalyzer:
                     extra={"timeout": self.timeout},
                 )
                 msg = f"LLM request timed out after {self.timeout} seconds"
-                raise LLMCommunicationError(
-                    msg,
-                    original_error=e,
-                ) from e
-
-            except json.JSONDecodeError as e:
-                # JSON decode errors are not retryable
-                logger.exception(
-                    "Failed to parse LLM response as JSON",
-                    extra={"error": str(e), "response_preview": response[:200]},
-                )
-                msg = f"Could not parse LLM response as JSON: {e}"
-                raise InvalidResponseFormatError(
-                    msg,
-                    response=response,
-                    expected_format="Valid JSON object with task analysis",
-                ) from e
-
-            except ValueError as e:
-                # Check if it's a specific error we should handle differently
-                error_msg = str(e).lower()
-
-                if "rate limit" in error_msg or "too many requests" in error_msg:
-                    logger.warning("Rate limit detected")
-                    msg = "Rate limit exceeded for LLM API"
-                    raise RateLimitError(
-                        msg,
-                    ) from e
-
-                if "context length" in error_msg or "token limit" in error_msg:
-                    # Context length errors are not retryable
-                    msg = "Prompt exceeds LLM context length limit"
-                    raise ContextLengthExceededError(
-                        msg,
-                        prompt_length=prompt_length,
-                    ) from e
-                # Other ValueError types (validation errors) are not retryable
-                raise
+                raise LLMCommunicationError(msg, original_error=e) from e
 
             except (InvalidResponseFormatError, ValidationError, ContextLengthExceededError):
                 # These are our custom exceptions - don't wrap them
@@ -305,10 +342,7 @@ class WebTaskAnalyzer:
                     extra={"error": str(e), "error_type": type(e).__name__},
                 )
                 msg = "Failed to analyze task"
-                raise LLMCommunicationError(
-                    msg,
-                    original_error=e,
-                ) from e
+                raise LLMCommunicationError(msg, original_error=e) from e
 
         try:
             return await _analyze_with_retry()
