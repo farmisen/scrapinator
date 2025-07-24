@@ -1,4 +1,7 @@
-.PHONY: help install lint format type-check test clean all
+.PHONY: help install lint format type-check test clean all dev-check
+
+# Note: If you see "make: function definition file not found", this is due to a shell
+# function overriding the make command. Use ./make.sh as a workaround.
 
 # Default target
 all: lint type-check
