@@ -3,11 +3,11 @@
 import asyncio
 import json
 import logging
-import re
 from typing import Any, Dict, Optional, Protocol
 
 from src.models.task import Task
 from src.prompts.task_analysis import TASK_ANALYSIS_PROMPT
+from src.utils.json_utils import extract_json_from_text, normalize_optional_fields
 
 logger = logging.getLogger(__name__)
 
@@ -109,56 +109,16 @@ class WebTaskAnalyzer:
         Raises:
             ValueError: If the response cannot be parsed or is missing required fields
         """
-        # Try to extract JSON from the response
-        # Sometimes LLMs add extra text before/after JSON
-        response = response.strip()
+        # Extract JSON from the response
+        data = extract_json_from_text(response)
 
-        # Try multiple JSON extraction strategies
-        json_data = None
-
-        # Strategy 1: Try to parse the entire response as JSON
-        try:
-            json_data = json.loads(response)
-            logger.debug("Successfully parsed entire response as JSON")
-        except json.JSONDecodeError:
-            pass
-
-        # Strategy 2: Find JSON using regex pattern
-        if not json_data:
-            json_pattern = re.compile(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", re.DOTALL)
-            matches = json_pattern.findall(response)
-
-            for match in matches:
-                try:
-                    json_data = json.loads(match)
-                    logger.debug("Successfully extracted JSON using regex")
-                    break
-                except json.JSONDecodeError:
-                    continue
-
-        # Strategy 3: Find JSON object boundaries (original method)
-        if not json_data:
-            start_idx = response.find("{")
-            end_idx = response.rfind("}") + 1
-
-            if start_idx != -1 and end_idx > 0:
-                try:
-                    json_str = response[start_idx:end_idx]
-                    json_data = json.loads(json_str)
-                    logger.debug("Successfully extracted JSON using bracket search")
-                except json.JSONDecodeError:
-                    pass
-
-        if not json_data:
+        if not data:
             error_msg = (
                 f"No valid JSON object found in LLM response. "
                 f"Expected a JSON object with task analysis, but received: "
                 f"{response[:RESPONSE_PREVIEW_LENGTH]}{'...' if len(response) > RESPONSE_PREVIEW_LENGTH else ''}"
             )
             raise ValueError(error_msg)
-
-        # Parse the JSON
-        data = json_data
 
         # Validate required fields
         required_fields = ["description", "objectives", "success_criteria"]
@@ -190,11 +150,7 @@ class WebTaskAnalyzer:
         data.setdefault("constraints", [])
         data.setdefault("context", {})
 
-        # Ensure None instead of null strings or other representations
-        if data.get("data_to_extract") in [None, "null", "None", []]:
-            data["data_to_extract"] = None
-
-        if data.get("actions_to_perform") in [None, "null", "None", []]:
-            data["actions_to_perform"] = None
+        # Normalize optional fields
+        normalize_optional_fields(data, ["data_to_extract", "actions_to_perform"])
 
         return data
