@@ -185,6 +185,41 @@ Tests are organized by:
 - **Fixtures**: Shared test data in `tests/integration/fixtures/`
 - **Cassettes**: VCR recordings in `tests/integration/cassettes/`
 
+## Troubleshooting
+
+### Integration Test Authentication Errors
+
+If you see authentication errors when running integration tests:
+
+1. **Verify API key is set correctly**:
+   ```bash
+   echo $ANTHROPIC_API_KEY  # Should show your key (or partial)
+   echo $OPENAI_API_KEY     # Should show your key (or partial)
+   ```
+
+2. **Delete corrupted cassettes**:
+   ```bash
+   # Remove all cassettes with auth errors
+   rm -rf tests/integration/cassettes/
+   ```
+
+3. **Re-record cassettes**:
+   ```bash
+   # Record new cassettes with valid API keys
+   pytest tests/integration -v -m integration --record-mode=once
+   ```
+
+4. **Check for expired or invalid API keys**:
+   - Verify keys are active in the provider's dashboard
+   - Ensure keys have appropriate permissions
+
+### Common Issues
+
+- **Deprecation warnings**: Update model names in `src/llm_client.py`
+- **Rate limits**: Reduce test parallelism or add delays
+- **Timeout errors**: Increase timeout in test configuration
+- **Cassette mismatches**: Delete and re-record when API changes
+
 ## Contributing
 
 When adding new tests:
