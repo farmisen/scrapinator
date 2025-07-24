@@ -1,4 +1,9 @@
-.PHONY: help install lint format type-check test clean all
+.PHONY: help install lint format type-check test clean all dev-check
+
+# Check if make is working properly
+ifeq ($(MAKE_VERSION),)
+$(error GNU Make is required but not found. If you see "function definition file not found", try using ./make.sh instead)
+endif
 
 # Default target
 all: lint type-check

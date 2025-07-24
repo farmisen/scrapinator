@@ -113,6 +113,32 @@ ruff check src/
 pyright
 ```
 
+### Using Make Commands
+
+The project includes a Makefile for common development tasks:
+
+```bash
+make help        # Show available commands
+make install     # Install project with dev dependencies
+make lint        # Run Ruff linter
+make format      # Format code with Ruff
+make type-check  # Run Pyright type checker
+make test        # Run pytest tests
+make dev-check   # Run format, lint, and type-check
+make clean       # Remove cache files
+```
+
+#### Troubleshooting Make
+
+If you encounter the error `make: function definition file not found`, this is likely due to a shell configuration issue (common with zsh). Use the wrapper script:
+
+```bash
+./make.sh test
+./make.sh lint
+./make.sh format
+# etc.
+```
+
 ## 📚 Example Tasks
 
 ### Data Extraction
