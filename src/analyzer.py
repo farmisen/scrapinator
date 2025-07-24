@@ -5,6 +5,7 @@ import json
 import logging
 from typing import Any, Dict, Optional, Protocol
 
+from src.llm_provider import LLMProvider
 from src.models.task import Task
 from src.prompts.task_analysis import get_prompt_config
 from src.utils.json_utils import extract_json_from_text, normalize_optional_fields
@@ -30,7 +31,7 @@ class WebTaskAnalyzer:
         self,
         llm_client: LLMClient,
         timeout: Optional[float] = 30.0,
-        provider: str = "anthropic",
+        provider: str = LLMProvider.ANTHROPIC.value,
     ) -> None:
         """
         Initialize the WebTaskAnalyzer with an LLM client.
@@ -39,9 +40,26 @@ class WebTaskAnalyzer:
             llm_client: The LLM client instance to use for analysis
             timeout: Maximum time in seconds to wait for LLM response (default: 30.0)
             provider: LLM provider name for prompt configuration (default: "anthropic")
+                     Valid values: "anthropic", "openai", "compact"
+                     Falls back to "anthropic" if invalid provider is specified
+
+        Note:
+            The prompt configuration includes recommended settings for temperature
+            and max_tokens, but these must be implemented by the LLM client.
+            The system_message in the config should be passed to the LLM if supported.
         """
         self.llm = llm_client
         self.timeout = timeout
+
+        # Validate provider and fall back to default if invalid
+        if not LLMProvider.is_valid(provider):
+            logger.warning(
+                "Invalid provider '%s' specified. Falling back to '%s'",
+                provider,
+                LLMProvider.ANTHROPIC.value,
+            )
+            provider = LLMProvider.ANTHROPIC.value
+
         self.provider = provider
         self.prompt_config = get_prompt_config(provider)
 

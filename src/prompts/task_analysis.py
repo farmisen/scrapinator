@@ -2,10 +2,15 @@
 
 from typing import Any, Dict
 
+from src.llm_provider import LLMProvider
+
 # Base prompt template with few-shot examples
 TASK_ANALYSIS_PROMPT = """You are an expert at analyzing web automation tasks. Given a URL and a natural language task description, extract structured information about what needs to be done.
 
 Here are some examples of how to analyze tasks:
+
+# Note: In the JSON examples below, double braces {{{{ }}}} are used to escape literal braces
+# in Python format strings. The actual JSON should use single braces {{}}.
 
 Example 1:
 URL: https://shop.example.com
@@ -103,6 +108,53 @@ Response:
     }}
 }}
 
+Example 4:
+URL: https://account.example.com
+Task: Download all invoices from the last 3 months after logging in with username "user@example.com"
+
+Response:
+{{
+    "description": "Download all invoices from the last 3 months after logging in with username \"user@example.com\"",
+    "objectives": [
+        "Navigate to login page",
+        "Log in with provided credentials",
+        "Navigate to invoices section",
+        "Filter invoices by date range (last 3 months)",
+        "Download all filtered invoices"
+    ],
+    "success_criteria": [
+        "Successfully logged in",
+        "All invoices from the last 3 months are found",
+        "All invoices are successfully downloaded",
+        "Downloaded files are saved locally"
+    ],
+    "data_to_extract": [
+        "Invoice numbers",
+        "Invoice dates",
+        "Invoice amounts",
+        "Download URLs"
+    ],
+    "actions_to_perform": [
+        "Fill username field",
+        "Fill password field",
+        "Click login button",
+        "Navigate to invoices page",
+        "Set date filter",
+        "Click download for each invoice"
+    ],
+    "constraints": [
+        "Only invoices from the last 3 months",
+        "Must use provided username",
+        "Must download all matching invoices",
+        "Handle pagination if present"
+    ],
+    "context": {{
+        "username": "user@example.com",
+        "date_range": "last_3_months",
+        "action_type": "bulk_download"
+    }}
+}}
+
 Now analyze this task:
 
 URL: {url}
@@ -146,29 +198,31 @@ Rules:
 Return only JSON, no text."""
 
 # Provider-specific prompt configurations
+# Note: temperature and max_tokens are recommended settings for LLM client implementations
+# The actual enforcement of these limits depends on the LLM client being used
 PROVIDER_CONFIGS = {
-    "anthropic": {
+    LLMProvider.ANTHROPIC.value: {
         "prompt": TASK_ANALYSIS_PROMPT,
         "system_message": "You are a web automation expert that analyzes tasks and returns structured JSON.",
-        "temperature": 0.3,
-        "max_tokens": 1000,
+        "temperature": 0.3,  # Recommended for consistent, focused responses
+        "max_tokens": 1000,  # Recommended limit for response size
     },
-    "openai": {
+    LLMProvider.OPENAI.value: {
         "prompt": TASK_ANALYSIS_PROMPT,
         "system_message": "You are a web automation expert. Always respond with valid JSON only.",
-        "temperature": 0.3,
-        "max_tokens": 1000,
+        "temperature": 0.3,  # Recommended for consistent, focused responses
+        "max_tokens": 1000,  # Recommended limit for response size
     },
-    "compact": {
+    LLMProvider.COMPACT.value: {
         "prompt": TASK_ANALYSIS_PROMPT_COMPACT,
         "system_message": "Analyze web tasks. Return only JSON.",
-        "temperature": 0.3,
-        "max_tokens": 500,
+        "temperature": 0.3,  # Recommended for consistent, focused responses
+        "max_tokens": 500,  # Reduced limit for compact models
     },
 }
 
 
-def get_prompt_config(provider: str = "anthropic") -> Dict[str, Any]:
+def get_prompt_config(provider: str = LLMProvider.ANTHROPIC.value) -> Dict[str, Any]:
     """
     Get prompt configuration for a specific LLM provider.
 
@@ -178,4 +232,4 @@ def get_prompt_config(provider: str = "anthropic") -> Dict[str, Any]:
     Returns:
         Dictionary with prompt configuration
     """
-    return PROVIDER_CONFIGS.get(provider, PROVIDER_CONFIGS["anthropic"])
+    return PROVIDER_CONFIGS.get(provider, PROVIDER_CONFIGS[LLMProvider.ANTHROPIC.value])
