@@ -1,9 +1,7 @@
 .PHONY: help install lint format type-check test clean all dev-check
 
-# Check if make is working properly
-ifeq ($(MAKE_VERSION),)
-$(error GNU Make is required but not found. If you see "function definition file not found", try using ./make.sh instead)
-endif
+# Note: If you see "make: function definition file not found", this is due to a shell
+# function overriding the make command. Use ./make.sh as a workaround.
 
 # Default target
 all: lint type-check

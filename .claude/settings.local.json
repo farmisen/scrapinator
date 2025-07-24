@@ -14,7 +14,11 @@
       "Bash(uv run pytest:*)",
       "Bash(uv run ruff:*)",
       "Bash(uv run:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)"
     ],
     "deny": []
   }
