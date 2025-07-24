@@ -8,12 +8,14 @@ import pytest
 
 from src.analyzer import WebTaskAnalyzer
 from src.exceptions import (
+    ContextLengthExceededError,
     InvalidResponseFormatError,
     LLMCommunicationError,
     RateLimitError,
     ValidationError,
 )
 from src.models.task import Task
+from src.prompts.task_analysis import get_prompt_config
 
 
 class TestWebTaskAnalyzer:
@@ -244,11 +246,17 @@ class TestWebTaskAnalyzer:
         assert analyzer_default.provider == "anthropic"
         assert "examples" in analyzer_default.prompt_config["prompt"].lower()
         
-        
         # Test openai provider
         analyzer_openai = WebTaskAnalyzer(mock_llm_client, provider="openai")
         assert analyzer_openai.provider == "openai"
         assert analyzer_openai.prompt_config["system_message"] == "You are a web automation expert. Always respond with valid JSON only."
+        
+        # Test invalid provider falls back to anthropic
+        # We can't test the logger.warning directly, but we can verify the fallback behavior
+        analyzer_invalid = WebTaskAnalyzer(mock_llm_client, provider="invalid_provider")
+        
+        assert analyzer_invalid.provider == "anthropic"
+        assert analyzer_invalid.prompt_config == get_prompt_config("anthropic")
 
     def test_build_prompt_uses_provider_config(self, mock_llm_client):
         """Test that prompt building uses the correct provider template."""
@@ -346,3 +354,107 @@ class TestWebTaskAnalyzer:
         
         # Should only call once, no retries for validation errors
         assert mock_llm_client.complete.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_context_length_exceeded_error(self, mock_llm_client):
+        """Test handling of context length exceeded errors."""
+        # For simplicity, we'll test that context length errors in _is_retryable_error work correctly
+        # The actual ValueError would be caught and re-raised as ContextLengthExceededError in _handle_llm_response
+        analyzer = WebTaskAnalyzer(mock_llm_client)
+        
+        # Test that context length ValueError is not retryable
+        context_error = ValueError("context length exceeded")
+        assert not analyzer._is_retryable_error(context_error)
+        
+        token_error = ValueError("token limit exceeded")
+        assert not analyzer._is_retryable_error(token_error)
+        
+        # Also test the actual flow by mocking a successful response followed by
+        # the error in the response handler
+        mock_response = json.dumps({
+            "description": "Test",
+            "objectives": ["Test"],
+            "success_criteria": ["Test"] 
+        })
+        mock_llm_client.complete.return_value = mock_response
+        
+        # Patch _parse_llm_response to raise the context length error
+        original_parse = analyzer._parse_llm_response
+        def mock_parse(response):
+            raise ValueError("context length exceeded while parsing")
+        
+        analyzer._parse_llm_response = mock_parse
+        
+        with pytest.raises(ContextLengthExceededError) as exc_info:
+            await analyzer.analyze_task("Test task", "https://example.com")
+        
+        # The ValueError should be converted to ContextLengthExceededError
+        assert "Prompt exceeds LLM context length limit" in str(exc_info.value)
+        assert exc_info.value.prompt_length > 0
+
+    @pytest.mark.asyncio 
+    async def test_empty_task_description(self, analyzer, mock_llm_client):
+        """Test handling of empty task description."""
+        mock_response = json.dumps({
+            "description": "",
+            "objectives": ["Generic objective"],
+            "success_criteria": ["Task completed"]
+        })
+        mock_llm_client.complete.return_value = mock_response
+        
+        # Should still work with empty description
+        task = await analyzer.analyze_task("", "https://example.com")
+        assert isinstance(task, Task)
+        assert task.description == ""
+
+    @pytest.mark.asyncio
+    async def test_invalid_url_format(self, analyzer, mock_llm_client):
+        """Test handling of invalid URL format."""
+        mock_response = json.dumps({
+            "description": "Task with invalid URL",
+            "objectives": ["Handle invalid URL"],
+            "success_criteria": ["Gracefully handle the URL"]
+        })
+        mock_llm_client.complete.return_value = mock_response
+        
+        # Should still work - URL validation is not done in analyzer
+        task = await analyzer.analyze_task("Test task", "not-a-valid-url")
+        assert isinstance(task, Task)
+        # Verify the invalid URL was still passed to the LLM
+        prompt = mock_llm_client.complete.call_args[0][0]
+        assert "not-a-valid-url" in prompt
+
+    @pytest.mark.asyncio
+    async def test_analyzer_without_timeout(self, mock_llm_client):
+        """Test analyzer behavior when timeout is None."""
+        mock_response = json.dumps({
+            "description": "Test task",
+            "objectives": ["Test objective"],
+            "success_criteria": ["Success"]
+        })
+        mock_llm_client.complete.return_value = mock_response
+        
+        # Create analyzer without timeout
+        analyzer = WebTaskAnalyzer(mock_llm_client, timeout=None)
+        task = await analyzer.analyze_task("Test task", "https://example.com")
+        
+        assert isinstance(task, Task)
+        # Verify the LLM was called without timeout wrapper
+        mock_llm_client.complete.assert_called_once()
+
+    def test_is_retryable_error(self, analyzer):
+        """Test the _is_retryable_error method."""
+        # Non-retryable errors
+        assert not analyzer._is_retryable_error(InvalidResponseFormatError("test"))
+        assert not analyzer._is_retryable_error(ValidationError("test"))
+        assert not analyzer._is_retryable_error(ContextLengthExceededError("test"))
+        assert not analyzer._is_retryable_error(json.JSONDecodeError("test", "doc", 0))
+        
+        # Context length ValueError is not retryable
+        assert not analyzer._is_retryable_error(ValueError("context length exceeded"))
+        assert not analyzer._is_retryable_error(ValueError("token limit reached"))
+        
+        # Other errors are retryable
+        assert analyzer._is_retryable_error(Exception("generic error"))
+        assert analyzer._is_retryable_error(ValueError("some other error"))
+        assert analyzer._is_retryable_error(TimeoutError("timeout"))
