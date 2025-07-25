@@ -73,3 +73,68 @@ jobs:
             .pytest_cache/
             htmlcov/
           retention-days: 7
+          
+  integration-tests:
+    name: Integration Tests (Optional)
+    runs-on: ubuntu-latest
+    # Only run on main branch or when PR has 'run-integration-tests' label
+    if: |
+      github.ref == 'refs/heads/main' || 
+      contains(github.event.pull_request.labels.*.name, 'run-integration-tests') ||
+      github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.cargo/bin/uv
+            .venv
+            tests/integration/cassettes
+          key: ${{ runner.os }}-python-integration-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-python-integration-
+            
+      - name: Install dependencies
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv pip install -e ".[dev]"
+          
+      - name: Run integration tests
+        env:
+          # API keys should be stored as GitHub secrets
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          source .venv/bin/activate
+          # Run integration tests only if API keys are available
+          if [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$OPENAI_API_KEY" ]; then
+            pytest tests/integration -v -m integration --record-mode=none
+          else
+            echo "Skipping integration tests - no API keys configured"
+          fi
+          
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            .pytest_cache/
+            tests/integration/cassettes/
+          retention-days: 7
