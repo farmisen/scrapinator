@@ -39,7 +39,7 @@ class TestTaskAnalyzerE2E:
 
     # Class-level rate limit tracking
     _last_api_call_time = 0
-    _min_time_between_calls = 1.0  # Minimum 1 second between API calls
+    _min_time_between_calls = 2.0  # Minimum 2 seconds between API calls
 
     @pytest.fixture(autouse=True)
     async def add_delay_between_tests(self, request):
@@ -66,9 +66,9 @@ class TestTaskAnalyzerE2E:
             "test_performance_benchmark",
             "test_invalid_api_key"  # Also delay after invalid API key tests
         ]):
-            await asyncio.sleep(3.0)  # 3 seconds for heavy tests
+            await asyncio.sleep(5.0)  # 5 seconds for heavy tests
         else:
-            await asyncio.sleep(1.0)  # 1 second for normal tests
+            await asyncio.sleep(3.0)  # 3 seconds for normal tests
 
     @pytest.fixture
     def vcr_config(self, request):
@@ -80,10 +80,25 @@ class TestTaskAnalyzerE2E:
                 "allow_playback_repeats": True,
             }
         
+        # Check if this test expects failures
+        test_name = request.node.name
+        expects_failure = any(name in test_name for name in [
+            "test_invalid_api_key",
+            "test_timeout_handling",
+        ])
+        
         def before_record_response(response):
-            """Don't record authentication errors."""
-            if response["status"]["code"] in [401, 403]:
-                return None
+            """Only record successful responses unless test expects failure."""
+            status_code = response["status"]["code"]
+            
+            # For tests that expect failures, record everything
+            if expects_failure:
+                return response
+                
+            # For normal tests, only record successful responses
+            if status_code >= 400:
+                return None  # Don't record errors
+                
             return response
 
         return {
@@ -277,22 +292,12 @@ class TestTaskAnalyzerE2E:
     @pytest.mark.slow
     async def test_rate_limit_simulation(self, anthropic_client):
         """Test rate limit handling (may not trigger actual rate limit)."""
-        analyzer = WebTaskAnalyzer(anthropic_client, max_retries=3, retry_delay=2.0)
+        analyzer = WebTaskAnalyzer(anthropic_client, max_retries=2, retry_delay=0.5)
 
         # Just test that we can make a request without hitting rate limits
         # Real rate limit testing would require many more requests
         task_desc = "Click the submit button"
-        
-        # Add a retry loop at test level for robustness
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            try:
-                task = await analyzer.analyze_task(task_desc, "https://example.com")
-                break
-            except Exception as e:
-                if attempt == max_attempts - 1:
-                    raise
-                await asyncio.sleep(2.0)  # Wait 2 seconds before retry
+        task = await analyzer.analyze_task(task_desc, "https://example.com")
         
         # Verify the task was created successfully
         assert isinstance(task, Task)
@@ -319,28 +324,19 @@ class TestTaskAnalyzerE2E:
     @pytest.mark.asyncio
     async def test_performance_benchmark_anthropic(self, anthropic_client):
         """Benchmark performance with Anthropic."""
-        analyzer = WebTaskAnalyzer(anthropic_client, provider="anthropic", max_retries=3, retry_delay=2.0)
+        analyzer = WebTaskAnalyzer(anthropic_client, provider="anthropic")
         perf_task = PERFORMANCE_TASKS[0]  # Simple task
         
-        # Add retry for robustness
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            try:
-                # Measure response time
-                start_time = time.time()
-                task = await analyzer.analyze_task(perf_task["description"], perf_task["url"])
-                response_time = time.time() - start_time
-                break
-            except Exception as e:
-                if attempt == max_attempts - 1:
-                    raise
-                await asyncio.sleep(2.0)
+        # Measure response time
+        start_time = time.time()
+        task = await analyzer.analyze_task(perf_task["description"], perf_task["url"])
+        response_time = time.time() - start_time
 
         # Verify task was analyzed correctly
         assert isinstance(task, Task)
         
         # Check performance (be generous with timeout for real API calls)
-        assert response_time < 15.0  # 15 seconds max (increased for retries)
+        assert response_time < 10.0  # 10 seconds max
         
         print(f"Anthropic benchmark - {perf_task['category']}: {response_time:.2f}s")
     
@@ -348,28 +344,19 @@ class TestTaskAnalyzerE2E:
     @pytest.mark.asyncio
     async def test_performance_benchmark_openai(self, openai_client):
         """Benchmark performance with OpenAI."""
-        analyzer = WebTaskAnalyzer(openai_client, provider="openai", max_retries=3, retry_delay=2.0)
+        analyzer = WebTaskAnalyzer(openai_client, provider="openai")
         perf_task = PERFORMANCE_TASKS[0]  # Simple task
         
-        # Add retry for robustness
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            try:
-                # Measure response time
-                start_time = time.time()
-                task = await analyzer.analyze_task(perf_task["description"], perf_task["url"])
-                response_time = time.time() - start_time
-                break
-            except Exception as e:
-                if attempt == max_attempts - 1:
-                    raise
-                await asyncio.sleep(2.0)
+        # Measure response time
+        start_time = time.time()
+        task = await analyzer.analyze_task(perf_task["description"], perf_task["url"])
+        response_time = time.time() - start_time
 
         # Verify task was analyzed correctly
         assert isinstance(task, Task)
         
         # Check performance (be generous with timeout for real API calls)
-        assert response_time < 15.0  # 15 seconds max
+        assert response_time < 10.0  # 10 seconds max
         
         print(f"OpenAI benchmark - {perf_task['category']}: {response_time:.2f}s")
 
@@ -377,7 +364,7 @@ class TestTaskAnalyzerE2E:
     @pytest.mark.asyncio
     async def test_different_task_types_anthropic(self, anthropic_client):
         """Test various task types with Anthropic."""
-        analyzer = WebTaskAnalyzer(anthropic_client, max_retries=3, retry_delay=2.0)
+        analyzer = WebTaskAnalyzer(anthropic_client)
         
         results = {}
         for category, descriptions in [
@@ -385,23 +372,13 @@ class TestTaskAnalyzerE2E:
             ("search", get_tasks_by_category("search")[0]),
             ("interaction", get_tasks_by_category("interaction")[0]),
         ]:
-            # Add retry for each task type
-            max_attempts = 3
-            for attempt in range(max_attempts):
-                try:
-                    task = await analyzer.analyze_task(descriptions, f"https://{category}.example.com")
-                    results[category] = {
-                        "objectives_count": len(task.objectives),
-                        "has_actions": task.has_actions(),
-                        "has_data": task.has_data_extraction(),
-                        "is_complex": task.is_complex(),
-                    }
-                    break
-                except Exception as e:
-                    if attempt == max_attempts - 1:
-                        raise
-                    await asyncio.sleep(2.0)
-            
+            task = await analyzer.analyze_task(descriptions, f"https://{category}.example.com")
+            results[category] = {
+                "objectives_count": len(task.objectives),
+                "has_actions": task.has_actions(),
+                "has_data": task.has_data_extraction(),
+                "is_complex": task.is_complex(),
+            }
             # Add delay between API calls to avoid rate limits
             await asyncio.sleep(1.0)
 
@@ -418,33 +395,15 @@ class TestTaskAnalyzerE2E:
         url = "https://shop.example.com"
 
         # Analyze with Anthropic
-        analyzer_anthropic = WebTaskAnalyzer(anthropic_client, provider="anthropic", max_retries=3, retry_delay=2.0)
-        
-        # Add retry for robustness
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            try:
-                task_anthropic = await analyzer_anthropic.analyze_task(task_desc, url)
-                break
-            except Exception as e:
-                if attempt == max_attempts - 1:
-                    raise
-                await asyncio.sleep(2.0)
+        analyzer_anthropic = WebTaskAnalyzer(anthropic_client, provider="anthropic")
+        task_anthropic = await analyzer_anthropic.analyze_task(task_desc, url)
 
         # Add delay before second API call
-        await asyncio.sleep(2.0)
+        await asyncio.sleep(1.5)
 
         # Analyze with OpenAI
-        analyzer_openai = WebTaskAnalyzer(openai_client, provider="openai", max_retries=3, retry_delay=2.0)
-        
-        for attempt in range(max_attempts):
-            try:
-                task_openai = await analyzer_openai.analyze_task(task_desc, url)
-                break
-            except Exception as e:
-                if attempt == max_attempts - 1:
-                    raise
-                await asyncio.sleep(2.0)
+        analyzer_openai = WebTaskAnalyzer(openai_client, provider="openai")
+        task_openai = await analyzer_openai.analyze_task(task_desc, url)
 
         # Both should produce valid tasks with similar structure
         assert isinstance(task_anthropic, Task)
