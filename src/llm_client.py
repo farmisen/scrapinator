@@ -7,6 +7,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
+from src.constants import DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL
 from src.llm_provider import LLMProvider
 
 
@@ -40,27 +41,31 @@ class LangChainLLMClient:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.model_name = model_name
-
-        # Set API key in environment if provided
-        if api_key:
-            if provider == LLMProvider.ANTHROPIC.value:
-                os.environ["ANTHROPIC_API_KEY"] = api_key
-            elif provider == LLMProvider.OPENAI.value:
-                os.environ["OPENAI_API_KEY"] = api_key
+        self.api_key = api_key
 
         # Initialize the appropriate model
         if provider == LLMProvider.ANTHROPIC.value:
-            default_model = "claude-3-5-sonnet-20241022"
+            # Get API key from parameter or environment
+            anthropic_api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
+            if not anthropic_api_key:
+                raise ValueError("ANTHROPIC_API_KEY not provided")
+                
             # Note: langchain-anthropic uses different parameter names
             self.model = ChatAnthropic(
-                model=model_name or default_model,  # pyright: ignore[reportCallIssue]
+                model=model_name or DEFAULT_ANTHROPIC_MODEL,  # pyright: ignore[reportCallIssue]
+                anthropic_api_key=anthropic_api_key,
                 temperature=temperature,
                 max_tokens_to_sample=max_tokens,
             )
         elif provider == LLMProvider.OPENAI.value:
-            default_model = "gpt-4"
+            # Get API key from parameter or environment
+            openai_api_key = api_key or os.getenv("OPENAI_API_KEY")
+            if not openai_api_key:
+                raise ValueError("OPENAI_API_KEY not provided")
+                
             self.model = ChatOpenAI(  # type: ignore[call-arg]
-                model=model_name or default_model,
+                model=model_name or DEFAULT_OPENAI_MODEL,
+                openai_api_key=openai_api_key,
                 temperature=temperature,
                 max_completion_tokens=max_tokens,
             )
@@ -124,14 +129,18 @@ class LangChainLLMClient:
             max_tok = max_tokens if max_tokens is not None else self.max_tokens
 
             if self.provider == LLMProvider.ANTHROPIC.value:
+                anthropic_api_key = self.api_key or os.getenv("ANTHROPIC_API_KEY")
                 model = ChatAnthropic(
-                    model=self.model_name or "claude-3-5-sonnet-20241022",  # pyright: ignore[reportCallIssue]
+                    model=self.model_name or DEFAULT_ANTHROPIC_MODEL,  # pyright: ignore[reportCallIssue]
+                    anthropic_api_key=anthropic_api_key,
                     temperature=temp,
                     max_tokens_to_sample=max_tok,
                 )
             else:  # OpenAI
+                openai_api_key = self.api_key or os.getenv("OPENAI_API_KEY")
                 model = ChatOpenAI(  # type: ignore[call-arg]
-                    model=self.model_name or "gpt-4",
+                    model=self.model_name or DEFAULT_OPENAI_MODEL,
+                    openai_api_key=openai_api_key,
                     temperature=temp,
                     max_completion_tokens=max_tok,
                 )
