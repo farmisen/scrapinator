@@ -166,3 +166,53 @@ class TestNormalizeOptionalFields:
         result = normalize_optional_fields(data, ["field1"])
         assert result is data  # Same object reference
         assert data["field1"] is None
+
+    def test_malformed_json_with_brackets(self):
+        """Test extraction with malformed JSON that has brackets."""
+        # Test case where brackets are found but JSON is invalid
+        text = "Some text { invalid json: no quotes } more text"
+        result = extract_json_from_text(text)
+        assert result is None
+    
+    def test_json_object_at_boundaries(self):
+        """Test JSON extraction using boundary search."""
+        # JSON that would fail code block extraction but works with boundary search
+        text = 'Random text before {"key": "value", "number": 42} random text after'
+        result = extract_json_from_text(text)
+        assert result == {"key": "value", "number": 42}
+    
+    def test_multiple_json_objects_uses_first(self):
+        """Test that when multiple JSON objects exist, the first valid one is used."""
+        text = 'First {"first": "value1"} some text {"second": "value2"}'
+        result = extract_json_from_text(text)
+        # Should get the first complete JSON object
+        assert result == {"first": "value1"}
+    
+    def test_json_with_code_fence_invalid_json(self):
+        """Test code fence with invalid JSON content."""
+        text = """```json
+{ this is not valid json }
+```"""
+        result = extract_json_from_text(text)
+        assert result is None
+    
+    def test_nested_json_in_code_block(self):
+        """Test extraction of nested JSON from code block."""
+        text = """Here's the response:
+```json
+{
+  "nested": {
+    "data": [1, 2, 3],
+    "flag": true
+  },
+  "status": "ok"
+}
+```"""
+        result = extract_json_from_text(text)
+        assert result == {
+            "nested": {
+                "data": [1, 2, 3],
+                "flag": True
+            },
+            "status": "ok"
+        }
