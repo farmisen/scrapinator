@@ -221,14 +221,19 @@ If you see authentication errors when running integration tests:
 
 ### Rate Limiting Issues
 
-Some tests may fail when running all integration tests together due to API rate limits. To address this:
+Integration tests include automatic delays to prevent rate limiting:
 
-1. **Run tests with delays**: Tests automatically include 2-second delays between tests
-2. **Run tests individually**: If a test fails in bulk, try running it alone:
+1. **Automatic delays**: Tests include 2-5 second delays between tests to prevent rate limits
+2. **Smart VCR configuration**: Failed requests are not recorded unless the test expects failures
+3. **Run tests individually**: If a test fails in bulk, try running it alone:
    ```bash
    pytest tests/integration/test_task_analyzer_e2e.py::TestTaskAnalyzerE2E::test_name -v --disable-recording
    ```
-3. **Expected failures**: Some tests are marked as `xfail` due to rate limiting when run in bulk
+4. **Regenerate cassettes**: If tests fail with cassette errors, delete and regenerate:
+   ```bash
+   rm -rf tests/integration/cassettes/
+   pytest tests/integration -v -m integration --record-mode=once
+   ```
 
 ### Common Issues
 
