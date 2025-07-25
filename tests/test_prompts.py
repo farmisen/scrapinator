@@ -1,7 +1,5 @@
 """Tests for prompt templates."""
 
-import pytest
-
 from src.llm_provider import LLMProvider
 from src.prompts.task_analysis import (
     PROVIDER_CONFIGS,
@@ -34,7 +32,6 @@ class TestPromptTemplates:
         assert "vague" in TASK_ANALYSIS_PROMPT
         assert "JSON" in TASK_ANALYSIS_PROMPT
 
-
     def test_provider_configs_exist(self) -> None:
         """Test that provider configurations are defined."""
         assert LLMProvider.ANTHROPIC.value in PROVIDER_CONFIGS
@@ -58,7 +55,6 @@ class TestPromptTemplates:
         assert PROVIDER_CONFIGS[LLMProvider.OPENAI.value]["prompt"] == TASK_ANALYSIS_PROMPT
         assert PROVIDER_CONFIGS[LLMProvider.OPENAI.value]["max_tokens"] == 1000
 
-
     def test_get_prompt_config_default(self) -> None:
         """Test get_prompt_config with default provider."""
         config = get_prompt_config()
@@ -66,8 +62,14 @@ class TestPromptTemplates:
 
     def test_get_prompt_config_specific_provider(self) -> None:
         """Test get_prompt_config with specific providers."""
-        assert get_prompt_config(LLMProvider.ANTHROPIC.value) == PROVIDER_CONFIGS[LLMProvider.ANTHROPIC.value]
-        assert get_prompt_config(LLMProvider.OPENAI.value) == PROVIDER_CONFIGS[LLMProvider.OPENAI.value]
+        assert (
+            get_prompt_config(LLMProvider.ANTHROPIC.value)
+            == PROVIDER_CONFIGS[LLMProvider.ANTHROPIC.value]
+        )
+        assert (
+            get_prompt_config(LLMProvider.OPENAI.value)
+            == PROVIDER_CONFIGS[LLMProvider.OPENAI.value]
+        )
 
     def test_get_prompt_config_unknown_provider(self) -> None:
         """Test get_prompt_config with unknown provider falls back to default."""
@@ -78,7 +80,7 @@ class TestPromptTemplates:
         """Test that prompts can be formatted correctly."""
         url = "https://test.example.com"
         task = "Test task description"
-        
+
         # Test main prompt formatting
         formatted = TASK_ANALYSIS_PROMPT.format(url=url, task_description=task)
         assert url in formatted

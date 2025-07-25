@@ -3,17 +3,13 @@
 import asyncio
 import os
 import time
-from typing import Any
 
 import pytest
 
 from src.analyzer import WebTaskAnalyzer
 from src.exceptions import (
-    ContextLengthExceededError,
     InvalidResponseFormatError,
     LLMCommunicationError,
-    RateLimitError,
-    ValidationError,
 )
 from src.llm_client import LangChainLLMClient
 from src.models.task import Task
@@ -33,7 +29,6 @@ pytestmark = [
 ]
 
 
-
 class TestTaskAnalyzerE2E:
     """End-to-end tests for WebTaskAnalyzer with real LLM APIs."""
 
@@ -49,23 +44,26 @@ class TestTaskAnalyzerE2E:
         time_since_last_call = current_time - TestTaskAnalyzerE2E._last_api_call_time
         if time_since_last_call < TestTaskAnalyzerE2E._min_time_between_calls:
             await asyncio.sleep(TestTaskAnalyzerE2E._min_time_between_calls - time_since_last_call)
-        
+
         TestTaskAnalyzerE2E._last_api_call_time = time.time()
-        
+
         yield
-        
+
         # Update last API call time
         TestTaskAnalyzerE2E._last_api_call_time = time.time()
-        
+
         # Add longer delays after tests that make multiple API calls
         test_name = request.node.name
-        if any(name in test_name for name in [
-            "test_different_task_types",
-            "test_context_switching", 
-            "test_rate_limit",
-            "test_performance_benchmark",
-            "test_invalid_api_key"  # Also delay after invalid API key tests
-        ]):
+        if any(
+            name in test_name
+            for name in [
+                "test_different_task_types",
+                "test_context_switching",
+                "test_rate_limit",
+                "test_performance_benchmark",
+                "test_invalid_api_key",  # Also delay after invalid API key tests
+            ]
+        ):
             await asyncio.sleep(5.0)  # 5 seconds for heavy tests
         else:
             await asyncio.sleep(3.0)  # 3 seconds for normal tests
@@ -79,26 +77,29 @@ class TestTaskAnalyzerE2E:
                 "record_mode": "none",  # Don't record anything
                 "allow_playback_repeats": True,
             }
-        
+
         # Check if this test expects failures
         test_name = request.node.name
-        expects_failure = any(name in test_name for name in [
-            "test_invalid_api_key",
-            "test_timeout_handling",
-        ])
-        
+        expects_failure = any(
+            name in test_name
+            for name in [
+                "test_invalid_api_key",
+                "test_timeout_handling",
+            ]
+        )
+
         def before_record_response(response):
             """Only record successful responses unless test expects failure."""
             status_code = response["status"]["code"]
-            
+
             # For tests that expect failures, record everything
             if expects_failure:
                 return response
-                
+
             # For normal tests, only record successful responses
             if status_code >= 400:
                 return None  # Don't record errors
-                
+
             return response
 
         return {
@@ -127,7 +128,7 @@ class TestTaskAnalyzerE2E:
         return LangChainLLMClient(provider="openai", api_key=api_key)
 
     @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_simple_task_anthropic(self, anthropic_client):
         """Test simple task analysis with Anthropic API."""
@@ -150,7 +151,7 @@ class TestTaskAnalyzerE2E:
         print(f"Anthropic simple task response time: {response_time:.2f}s")
 
     @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_simple_task_openai(self, openai_client):
         """Test simple task analysis with OpenAI API."""
@@ -173,7 +174,7 @@ class TestTaskAnalyzerE2E:
         print(f"OpenAI simple task response time: {response_time:.2f}s")
 
     @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_complex_navigation_task(self, anthropic_client):
         """Test complex multi-step navigation task."""
@@ -192,7 +193,7 @@ class TestTaskAnalyzerE2E:
         assert len(task.constraints) > 0
 
     @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_form_filling_task(self, openai_client):
         """Test form filling task analysis."""
@@ -209,7 +210,7 @@ class TestTaskAnalyzerE2E:
         assert len(task.actions_to_perform) > 0
 
     @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_data_extraction_task(self, anthropic_client):
         """Test pure data extraction task."""
@@ -224,7 +225,7 @@ class TestTaskAnalyzerE2E:
         assert len(task.data_to_extract) > 0
 
     @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_empty_description_edge_case(self, anthropic_client):
         """Test handling of empty task description."""
@@ -242,7 +243,7 @@ class TestTaskAnalyzerE2E:
             assert "don't see a task" in str(e).lower() or "no task provided" in str(e).lower()
 
     @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_very_long_description(self, openai_client):
         """Test handling of very long task descriptions."""
@@ -257,7 +258,7 @@ class TestTaskAnalyzerE2E:
         assert task.is_complex()
 
     @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_contradictory_instructions(self, anthropic_client):
         """Test handling of contradictory instructions."""
@@ -270,9 +271,12 @@ class TestTaskAnalyzerE2E:
         assert len(task.constraints) > 0
         # Check for various ways the LLM might express the constraint
         constraints_text = " ".join(c.lower() for c in task.constraints)
-        assert any(word in constraints_text for word in ["disabled", "enabled", "condition", "if", "unless"])
+        assert any(
+            word in constraints_text
+            for word in ["disabled", "enabled", "condition", "if", "unless"]
+        )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_invalid_api_key_anthropic(self):
         """Test error handling with invalid Anthropic API key."""
@@ -284,7 +288,7 @@ class TestTaskAnalyzerE2E:
 
         assert exc_info.value.retry_count > 0  # Should have retried
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_invalid_api_key_openai(self):
         """Test error handling with invalid OpenAI API key."""
@@ -297,7 +301,7 @@ class TestTaskAnalyzerE2E:
         assert exc_info.value.retry_count > 0
 
     @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.slow
     async def test_rate_limit_simulation(self, anthropic_client):
@@ -308,16 +312,16 @@ class TestTaskAnalyzerE2E:
         # Real rate limit testing would require many more requests
         task_desc = "Click the submit button"
         task = await analyzer.analyze_task(task_desc, "https://example.com")
-        
+
         # Verify the task was created successfully
         assert isinstance(task, Task)
         assert len(task.objectives) > 0
-        
+
         # Note: Actual rate limit testing is better done with mocked responses
         # to avoid hitting real API limits and incurring costs
 
     @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_timeout_handling(self, anthropic_client):
         """Test timeout handling with very short timeout."""
@@ -332,13 +336,13 @@ class TestTaskAnalyzerE2E:
         assert "timed out" in str(exc_info.value)
 
     @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_performance_benchmark_anthropic(self, anthropic_client):
         """Benchmark performance with Anthropic."""
         analyzer = WebTaskAnalyzer(anthropic_client, provider="anthropic")
         perf_task = PERFORMANCE_TASKS[0]  # Simple task
-        
+
         # Measure response time
         start_time = time.time()
         task = await analyzer.analyze_task(perf_task["description"], perf_task["url"])
@@ -346,20 +350,20 @@ class TestTaskAnalyzerE2E:
 
         # Verify task was analyzed correctly
         assert isinstance(task, Task)
-        
+
         # Check performance (be generous with timeout for real API calls)
         assert response_time < 10.0  # 10 seconds max
-        
+
         print(f"Anthropic benchmark - {perf_task['category']}: {response_time:.2f}s")
-    
+
     @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_performance_benchmark_openai(self, openai_client):
         """Benchmark performance with OpenAI."""
         analyzer = WebTaskAnalyzer(openai_client, provider="openai")
         perf_task = PERFORMANCE_TASKS[0]  # Simple task
-        
+
         # Measure response time
         start_time = time.time()
         task = await analyzer.analyze_task(perf_task["description"], perf_task["url"])
@@ -367,19 +371,19 @@ class TestTaskAnalyzerE2E:
 
         # Verify task was analyzed correctly
         assert isinstance(task, Task)
-        
+
         # Check performance (be generous with timeout for real API calls)
         assert response_time < 10.0  # 10 seconds max
-        
+
         print(f"OpenAI benchmark - {perf_task['category']}: {response_time:.2f}s")
 
     @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_different_task_types_anthropic(self, anthropic_client):
         """Test various task types with Anthropic."""
         analyzer = WebTaskAnalyzer(anthropic_client)
-        
+
         results = {}
         for category, descriptions in [
             ("navigation", get_tasks_by_category("navigation")[0]),
@@ -402,10 +406,10 @@ class TestTaskAnalyzerE2E:
         assert results["interaction"]["has_actions"]
 
     @pytest.mark.skipif(
-        not os.getenv("ANTHROPIC_API_KEY") or not os.getenv("OPENAI_API_KEY"), 
-        reason="Both ANTHROPIC_API_KEY and OPENAI_API_KEY required"
+        not os.getenv("ANTHROPIC_API_KEY") or not os.getenv("OPENAI_API_KEY"),
+        reason="Both ANTHROPIC_API_KEY and OPENAI_API_KEY required",
     )
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_context_switching_providers(self, anthropic_client, openai_client):
         """Test switching between providers for same task."""
@@ -426,11 +430,11 @@ class TestTaskAnalyzerE2E:
         # Both should produce valid tasks with similar structure
         assert isinstance(task_anthropic, Task)
         assert isinstance(task_openai, Task)
-        
+
         # Both should identify this as having actions
         assert task_anthropic.has_actions()
         assert task_openai.has_actions()
-        
+
         # At least one should identify data extraction (providers may differ)
         assert task_anthropic.has_data_extraction() or task_openai.has_data_extraction()
 

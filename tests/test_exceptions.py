@@ -1,7 +1,5 @@
 """Tests for custom exceptions."""
 
-import pytest
-
 from src.exceptions import (
     ContextLengthExceededError,
     InvalidResponseFormatError,

@@ -155,15 +155,18 @@ PERFORMANCE_TASKS = [
     },
 ]
 
-def get_simple_task():
+
+def get_simple_task() -> dict:
     """Get a simple task for basic testing."""
     return SIMPLE_TASKS[0]
 
-def get_complex_task():
+
+def get_complex_task() -> dict:
     """Get a complex task for advanced testing."""
     return COMPLEX_TASKS[0]
 
-def get_all_tasks():
+
+def get_all_tasks() -> dict:
     """Get all test tasks."""
     return {
         "simple": SIMPLE_TASKS,
@@ -172,6 +175,7 @@ def get_all_tasks():
         "performance": PERFORMANCE_TASKS,
     }
 
-def get_tasks_by_category(category: str):
+
+def get_tasks_by_category(category: str) -> list:
     """Get tasks for a specific category."""
     return TASK_CATEGORIES.get(category, [])

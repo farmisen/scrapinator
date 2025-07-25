@@ -6,6 +6,7 @@ from typing import cast
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 
 from src.constants import DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL
 from src.llm_provider import LLMProvider
@@ -48,26 +49,27 @@ class LangChainLLMClient:
             # Get API key from parameter or environment
             anthropic_api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
             if not anthropic_api_key:
-                raise ValueError("ANTHROPIC_API_KEY not provided")
-                
-            # Note: langchain-anthropic uses different parameter names
-            self.model = ChatAnthropic(
+                error_msg = "ANTHROPIC_API_KEY not provided"
+                raise ValueError(error_msg)
+
+            self.model = ChatAnthropic(  # pyright: ignore[reportCallIssue]
                 model=model_name or DEFAULT_ANTHROPIC_MODEL,  # pyright: ignore[reportCallIssue]
-                anthropic_api_key=anthropic_api_key,
+                api_key=SecretStr(anthropic_api_key),
                 temperature=temperature,
-                max_tokens_to_sample=max_tokens,
+                max_tokens=max_tokens,  # pyright: ignore[reportCallIssue]
             )
         elif provider == LLMProvider.OPENAI.value:
             # Get API key from parameter or environment
             openai_api_key = api_key or os.getenv("OPENAI_API_KEY")
             if not openai_api_key:
-                raise ValueError("OPENAI_API_KEY not provided")
-                
-            self.model = ChatOpenAI(  # type: ignore[call-arg]
+                error_msg = "OPENAI_API_KEY not provided"
+                raise ValueError(error_msg)
+
+            self.model = ChatOpenAI(  # pyright: ignore[reportCallIssue]
                 model=model_name or DEFAULT_OPENAI_MODEL,
-                openai_api_key=openai_api_key,
+                api_key=SecretStr(openai_api_key),
                 temperature=temperature,
-                max_completion_tokens=max_tokens,
+                max_tokens=max_tokens,  # pyright: ignore[reportCallIssue]
             )
         else:
             error_msg = f"Unsupported provider: {provider}"
@@ -130,19 +132,25 @@ class LangChainLLMClient:
 
             if self.provider == LLMProvider.ANTHROPIC.value:
                 anthropic_api_key = self.api_key or os.getenv("ANTHROPIC_API_KEY")
-                model = ChatAnthropic(
+                if not anthropic_api_key:
+                    error_msg = "ANTHROPIC_API_KEY not provided"
+                    raise ValueError(error_msg)
+                model = ChatAnthropic(  # pyright: ignore[reportCallIssue]
                     model=self.model_name or DEFAULT_ANTHROPIC_MODEL,  # pyright: ignore[reportCallIssue]
-                    anthropic_api_key=anthropic_api_key,
+                    api_key=SecretStr(anthropic_api_key),
                     temperature=temp,
-                    max_tokens_to_sample=max_tok,
+                    max_tokens=max_tok,  # pyright: ignore[reportCallIssue]
                 )
             else:  # OpenAI
                 openai_api_key = self.api_key or os.getenv("OPENAI_API_KEY")
-                model = ChatOpenAI(  # type: ignore[call-arg]
+                if not openai_api_key:
+                    error_msg = "OPENAI_API_KEY not provided"
+                    raise ValueError(error_msg)
+                model = ChatOpenAI(  # pyright: ignore[reportCallIssue]
                     model=self.model_name or DEFAULT_OPENAI_MODEL,
-                    openai_api_key=openai_api_key,
+                    api_key=SecretStr(openai_api_key),
                     temperature=temp,
-                    max_completion_tokens=max_tok,
+                    max_tokens=max_tok,  # pyright: ignore[reportCallIssue]
                 )
         else:
             model = self.model
