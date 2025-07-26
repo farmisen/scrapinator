@@ -24,6 +24,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+UTC = timezone.utc
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -263,7 +265,7 @@ async def main() -> None:
 
     # Print header
     print_header("WebTaskAnalyzer Integration Example")
-    print(f"\n📅 Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print(f"\n📅 Date: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
     print(f"🤖 Provider: {args.provider}")
     print(f"🧠 Model: {args.model or 'Default for provider'}")
 

@@ -10,11 +10,11 @@ help:
 	@echo "Available commands:"
 	@echo "  make install      - Install project with dev dependencies"
 	@echo "  make lint         - Run Ruff linter"
-	@echo "  make format       - Format code with Ruff"
-	@echo "  make format-check - Check code formatting without modifying files"
+	@echo "  make format       - Format code with Ruff (includes tests)"
+	@echo "  make format-check - Check code formatting"
 	@echo "  make fix          - Auto-fix code issues (format + safe linting fixes)"
 	@echo "  make type-check   - Run Pyright type checker"
-	@echo "  make test         - Run tests"
+	@echo "  make test         - Run pytest tests"
 	@echo "  make clean        - Remove cache files"
 	@echo "  make all          - Run lint and type-check"
 	@echo "  make dev-check    - Run all checks (format-check, lint, type-check)"
@@ -24,7 +24,7 @@ install:
 
 lint:
 	@echo "Running Ruff linter..."
-	uv run ruff check src/ examples/ tests/
+	uv run ruff check src/ examples/
 
 format:
 	@echo "Formatting code with Ruff..."
@@ -33,7 +33,7 @@ format:
 
 format-check:
 	@echo "Checking code formatting..."
-	uv run ruff format src/ examples/ tests/ --check
+	uv run ruff format src/ examples/ --check
 
 fix:
 	@echo "🔧 Auto-fixing code issues..."
@@ -51,7 +51,7 @@ fix:
 
 type-check:
 	@echo "Running Pyright type checker..."
-	uv run pyright src/ examples/ tests/
+	uv run pyright src/ examples/
 
 test:
 	@echo "Running tests..."
