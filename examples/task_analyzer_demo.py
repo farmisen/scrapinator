@@ -166,7 +166,9 @@ def print_error(error: Exception) -> None:
 
 
 async def analyze_single_task(
-    analyzer: WebTaskAnalyzer, task_name: str, task_info: dict[str, str]  # noqa: ARG001
+    analyzer: WebTaskAnalyzer,
+    task_name: str,
+    task_info: dict[str, str],
 ) -> None:
     """Analyze a single task and print results."""
     print_task_info(task_info)
