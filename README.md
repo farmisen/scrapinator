@@ -75,6 +75,32 @@ result = await automation.automate_task(
 )
 ```
 
+## 🧪 Running Examples
+
+The `examples/` directory contains comprehensive demonstrations of the WebTaskAnalyzer:
+
+```bash
+# Run the task analyzer demo with default settings (Anthropic/Claude)
+python examples/task_analyzer_demo.py
+
+# Use OpenAI instead
+python examples/task_analyzer_demo.py --provider openai
+
+# Run specific task scenarios
+python examples/task_analyzer_demo.py --tasks simple_extraction multi_step_navigation
+
+# See all options
+python examples/task_analyzer_demo.py --help
+```
+
+The demo showcases:
+- Multiple task scenarios (data extraction, navigation, form filling, downloads)
+- Error handling and retry logic
+- Support for both Anthropic and OpenAI providers
+- Performance timing and pretty output formatting
+
+See `examples/README.md` for detailed documentation.
+
 ## 📁 Project Structure
 
 ```
@@ -85,6 +111,9 @@ scrapinator/
 │   ├── analyzer.py              # LLM-powered analysis
 │   ├── executor.py              # Browser automation executor
 │   └── adaptive_downloader.py   # Legacy ROM downloader (to be refactored)
+├── examples/
+│   ├── task_analyzer_demo.py    # Comprehensive WebTaskAnalyzer demo
+│   └── README.md                # Examples documentation
 ├── doc/
 │   ├── web_task_automation_system.md # Full system specification
 ├── pyproject.toml               # Modern Python project configuration
