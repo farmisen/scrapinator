@@ -153,10 +153,11 @@ make help        # Show available commands
 make install     # Install project with dev dependencies
 make lint        # Run Ruff linter
 make format      # Format code with Ruff
+make format-check # Check code formatting without modifying files
 make fix         # Auto-fix code issues (format + safe linting fixes)
 make type-check  # Run Pyright type checker
 make test        # Run pytest tests
-make dev-check   # Run lint and type-check
+make dev-check   # Run all checks (format-check, lint, type-check)
 make clean       # Remove cache files
 ```
 

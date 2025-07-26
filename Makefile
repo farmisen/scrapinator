@@ -1,4 +1,4 @@
-.PHONY: help install lint format type-check test clean all dev-check fix
+.PHONY: help install lint format format-check type-check test clean all dev-check fix
 
 # Note: If you see "make: function definition file not found", this is due to a shell
 # function overriding the make command. Use ./make.sh as a workaround.
@@ -11,12 +11,13 @@ help:
 	@echo "  make install      - Install project with dev dependencies"
 	@echo "  make lint         - Run Ruff linter"
 	@echo "  make format       - Format code with Ruff"
+	@echo "  make format-check - Check code formatting without modifying files"
 	@echo "  make fix          - Auto-fix code issues (format + safe linting fixes)"
 	@echo "  make type-check   - Run Pyright type checker"
 	@echo "  make test         - Run tests"
 	@echo "  make clean        - Remove cache files"
 	@echo "  make all          - Run lint and type-check"
-	@echo "  make dev-check    - Run all checks (lint and type-check)"
+	@echo "  make dev-check    - Run all checks (format-check, lint, type-check)"
 
 install:
 	uv pip install -e ".[dev]"
@@ -29,6 +30,10 @@ format:
 	@echo "Formatting code with Ruff..."
 	uv run ruff format src/ examples/ tests/
 	uv run ruff check src/ examples/ tests/ --fix
+
+format-check:
+	@echo "Checking code formatting..."
+	uv run ruff format src/ examples/ tests/ --check
 
 fix:
 	@echo "🔧 Auto-fixing code issues..."
@@ -63,5 +68,5 @@ clean:
 	find . -type d -name "*.egg-info" -exec rm -rf {} +
 
 # Development workflow
-dev-check: lint type-check
+dev-check: format-check lint type-check
 	@echo "✅ All checks passed!"
