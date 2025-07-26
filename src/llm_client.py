@@ -75,20 +75,20 @@ class LangChainLLMClient:
             error_msg = f"Unsupported provider: {provider}"
             raise ValueError(error_msg)
 
-    async def complete(self, prompt_text: str) -> str:
+    async def complete(self, prompt: str) -> str:
         """
         Complete a prompt and return the response.
 
         This method satisfies the LLMClient protocol used by WebTaskAnalyzer.
 
         Args:
-            prompt_text: The prompt to send to the LLM
+            prompt: The prompt to send to the LLM
 
         Returns:
             The LLM's response as a string
         """
         # Create a message with the prompt
-        messages = [HumanMessage(content=prompt_text)]
+        messages = [HumanMessage(content=prompt)]
 
         # Use ainvoke for async operation
         response = await self.model.ainvoke(messages)
