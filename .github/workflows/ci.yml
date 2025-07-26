@@ -15,11 +15,11 @@ jobs:
     strategy:
       fail-fast: false  # Continue running all jobs even if one fails
       matrix:
-        check: [lint, format, type-check, test]
+        check: [lint, format-check, type-check, test]
         include:
           - check: lint
             name: "Lint (Ruff)"
-          - check: format
+          - check: format-check
             name: "Format Check (Ruff)"
           - check: type-check
             name: "Type Check (Pyright)"

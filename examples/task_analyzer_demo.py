@@ -21,12 +21,13 @@ import asyncio
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# All imports after sys.path modification need noqa comments for E402
 from src.analyzer import WebTaskAnalyzer
 from src.exceptions import (
     ContextLengthExceededError,
@@ -36,7 +37,9 @@ from src.exceptions import (
     ValidationError,
 )
 from src.llm_client import LangChainLLMClient
-from src.models.task import Task
+from src.models.task import (
+    Task,  # noqa: TC001 - E402: Import after sys.path; TC001: Need at runtime for method calls
+)
 
 # Example task descriptions for different scenarios
 EXAMPLE_TASKS = {
@@ -166,7 +169,9 @@ def print_error(error: Exception) -> None:
 
 
 async def analyze_single_task(
-    analyzer: WebTaskAnalyzer, task_name: str, task_info: dict[str, str]  # noqa: ARG001
+    analyzer: WebTaskAnalyzer,
+    task_name: str,  # noqa: ARG001 - Unused but kept for consistent function signature
+    task_info: dict[str, str],
 ) -> None:
     """Analyze a single task and print results."""
     print_task_info(task_info)
@@ -194,7 +199,7 @@ async def analyze_single_task(
         ContextLengthExceededError,
     ) as e:
         print_error(e)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - Catch all errors to show unexpected error handling in demo
         print(f"\n❌ Unexpected error: {type(e).__name__}: {e!s}")
 
 
@@ -210,7 +215,7 @@ async def demonstrate_error_handling(analyzer: WebTaskAnalyzer) -> None:
             task_description="",  # Empty description should fail
             url="https://example.com",
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - Intentionally broad to demonstrate error handling for any exception
         print_error(e)
 
     # Test 2: Very long task description (might trigger context length error)
@@ -225,7 +230,7 @@ async def demonstrate_error_handling(analyzer: WebTaskAnalyzer) -> None:
             task_description=long_description,
             url="https://example.com",
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - Intentionally broad to demonstrate error handling for any exception
         print_error(e)
 
 
@@ -261,7 +266,7 @@ async def main() -> None:
 
     # Print header
     print_header("WebTaskAnalyzer Integration Example")
-    print(f"\n📅 Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print(f"\n📅 Date: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
     print(f"🤖 Provider: {args.provider}")
     print(f"🧠 Model: {args.model or 'Default for provider'}")
 

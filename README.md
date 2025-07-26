@@ -153,10 +153,34 @@ make help        # Show available commands
 make install     # Install project with dev dependencies
 make lint        # Run Ruff linter
 make format      # Format code with Ruff
+make format-check # Check code formatting without modifying files
+make fix         # Auto-fix code issues (format + safe linting fixes)
 make type-check  # Run Pyright type checker
 make test        # Run pytest tests
-make dev-check   # Run format, lint, and type-check
+make dev-check   # Run all checks (format-check, lint, type-check)
 make clean       # Remove cache files
+```
+
+#### Auto-fixing Code Issues
+
+The `make fix` command automatically fixes common code quality issues:
+
+```bash
+# Automatically format code and fix safe linting issues
+make fix
+
+# Then run checks to see any remaining issues
+make dev-check
+```
+
+This command will:
+- Format all code using Ruff formatter
+- Apply safe linting fixes automatically
+- Show which types of issues need manual intervention (e.g., type errors)
+
+For more aggressive fixes that might change code behavior, you can manually run:
+```bash
+uv run ruff check --fix --unsafe-fixes
 ```
 
 #### Troubleshooting Make
