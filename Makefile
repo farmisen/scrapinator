@@ -33,7 +33,7 @@ format:
 
 format-check:
 	@echo "Checking code formatting..."
-	uv run ruff format src/ examples/ --check
+	uv run ruff format src/ examples/ tests/ --check
 
 fix:
 	@echo "🔧 Auto-fixing code issues..."
