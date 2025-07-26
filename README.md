@@ -233,6 +233,38 @@ All checks must pass for a PR to be merged. The CI status is displayed at the to
 - "Navigate to each article and extract the full text"
 - "Follow pagination to get all forum posts"
 
+## 🛠️ Development Tools
+
+### Git Worktree Scripts
+
+For developers who prefer using git worktrees to manage multiple feature branches, we provide automation scripts in the `bin/` directory:
+
+#### create-worktree
+Creates a new git worktree for a Linear ticket:
+
+```bash
+# Create worktree for ticket ROY-123
+bin/create-worktree ROY-123
+
+# This will:
+# - Create worktree at ../scrapinator-roy-123
+# - Set up appropriate branch name
+# - Symlink .envrc for environment variables
+# - Launch Claude Code to implement the ticket
+```
+
+#### cleanup-worktree
+Removes a git worktree after PR is merged:
+
+```bash
+# Run from within the worktree directory
+bin/cleanup-worktree
+
+# Options:
+bin/cleanup-worktree --dry-run  # Preview what would be done
+bin/cleanup-worktree --help     # Show usage information
+```
+
 ## 🔧 Configuration
 
 Configure automation behavior through environment variables:
