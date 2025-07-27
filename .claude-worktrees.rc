@@ -2,9 +2,9 @@
 # This file defines MCP servers and files to symlink for git worktrees
 
 # MCP Server Configuration
-# Format: SERVER_NAME|COMMAND|ARG1|ARG2|...
+# Format: SERVER_NAME|FULL_COMMAND
 MCP_SERVERS="
-linear|npx|-y|mcp-remote|https://mcp.linear.app/sse
+linear|npx -y mcp-remote https://mcp.linear.app/sse
 "
 
 # Files to symlink from main repository to worktree
