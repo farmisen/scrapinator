@@ -204,6 +204,12 @@ main() {
         $claude_cmd --version || print_error "Failed to get claude version"
 
         print_info "Fetching branch name from Linear..."
+        
+        # Debug: Try running without capturing output first
+        print_info "Debug: Running command directly (not capturing output)..."
+        gtimeout 5s $claude_cmd --print "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else."
+        print_info "Debug: Direct command completed"
+        
         print_info "Running: gtimeout 30s $claude_cmd --print \"Fetch the git branch name...\""
         branch_name=$(gtimeout 30s $claude_cmd --print "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
         local exit_code=$?
