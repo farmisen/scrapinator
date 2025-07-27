@@ -154,13 +154,6 @@ main() {
         exit 1
     fi
 
-    # Check for gtimeout (GNU coreutils on macOS)
-    if ! command -v gtimeout &> /dev/null; then
-        print_error "gtimeout not found. Please install GNU coreutils first."
-        print_info "Run: brew install coreutils"
-        exit 1
-    fi
-
     # Get git root directory
     local git_root
     git_root=$(get_git_root)
@@ -206,22 +199,14 @@ main() {
     print_info "Using claude command: $claude_cmd"
 
     if check_claude_available; then
-        # Check claude version for debugging
-        print_info "Checking claude version..."
-        $claude_cmd --version || print_error "Failed to get claude version"
-
         print_info "Fetching branch name from Linear..."
-        print_info "Running: gtimeout 30s $claude_cmd --print \"Fetch the git branch name...\"" 
-        branch_name=$(gtimeout 30s $claude_cmd --print "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
+        branch_name=$($claude_cmd --print "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
         local exit_code=$?
         print_info "Command completed with exit code: $exit_code"
         print_info "Claude output (first 500 chars): ${branch_name:0:500}"
 
-        # Check if Claude command failed or timed out
-        if [ $exit_code -eq 124 ]; then
-            print_error "Claude command timed out after 30 seconds"
-            exit 1
-        elif [ $exit_code -ne 0 ]; then
+        # Check if Claude command failed
+        if [ $exit_code -ne 0 ]; then
             print_error "Failed to fetch branch name from Linear (exit code: $exit_code)"
             print_info "Claude output: $branch_name"
             exit 1
@@ -237,8 +222,8 @@ main() {
             exit 1
         fi
     else
-        # Fallback branch name if Claude is not available
-        branch_name="farmisen/${ticket_slug}-feature"
+        print_error "Cannot fetch branch name from Linear without Claude Code CLI"
+        exit 1
     fi
 
     print_info "Using branch name: $branch_name"
@@ -280,13 +265,12 @@ main() {
         print_info "Launching Claude Code to implement $ticket_id..."
         local claude_cmd
         claude_cmd=$(get_claude_path)
-        # Don't use timeout for interactive claude session
-        $claude_cmd "Please implement Linear ticket $ticket_id. Start by fetching the ticket details from Linear." &
-        print_success "Claude Code launched in the background"
+        # Launch claude in interactive mode (foreground)
+        exec $claude_cmd "Please implement Linear ticket $ticket_id. Start by fetching the ticket details from Linear."
+    else
+        # Start a new shell in the worktree directory if claude is not available
+        exec "$SHELL"
     fi
-
-    # Start a new shell in the worktree directory
-    exec "$SHELL"
 }
 
 # Run main function
