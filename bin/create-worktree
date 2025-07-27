@@ -126,6 +126,96 @@ setup_python_environment() {
     return 0
 }
 
+setup_mcp_servers() {
+    local worktree_path="$1"
+    local git_root="$2"
+    local config_file="${git_root}/.claude-worktrees.rc"
+    
+    # Check if configuration file exists
+    if [ ! -f "$config_file" ]; then
+        print_info "No .claude-worktrees.rc found, skipping MCP server setup"
+        return 0
+    fi
+    
+    # Source the configuration file
+    source "$config_file"
+    
+    # Check if MCP_SERVERS is defined and not empty
+    if [ -z "$MCP_SERVERS" ] || [ -z "$(echo "$MCP_SERVERS" | tr -d '[:space:]')" ]; then
+        print_info "No MCP servers configured in .claude-worktrees.rc"
+        return 0
+    fi
+    
+    print_info "Setting up MCP servers for worktree..."
+    
+    # Get claude command path
+    local claude_cmd
+    claude_cmd=$(get_claude_path)
+    
+    # Process each MCP server configuration
+    echo "$MCP_SERVERS" | while IFS='|' read -r server_name command args_rest; do
+        # Skip empty lines
+        [ -z "$server_name" ] && continue
+        
+        # Convert the remaining args into an array
+        IFS='|' read -ra args_array <<< "$args_rest"
+        
+        print_info "Adding MCP server: $server_name"
+        
+        # Use claude mcp add command
+        if ! "$claude_cmd" mcp add --project "$worktree_path" "$server_name" "$command" "${args_array[@]}"; then
+            print_error "Failed to add MCP server: $server_name"
+        fi
+    done
+    
+    print_success "MCP servers configured for worktree"
+    return 0
+}
+
+setup_symlinks() {
+    local worktree_path="$1"
+    local git_root="$2"
+    local config_file="${git_root}/.claude-worktrees.rc"
+    
+    # Check if configuration file exists
+    if [ ! -f "$config_file" ]; then
+        # Fallback to default symlinks if no config file
+        if [ -f "${git_root}/.envrc" ]; then
+            print_info "Creating symlink for .envrc..."
+            ln -s "${git_root}/.envrc" "${worktree_path}/.envrc"
+        fi
+        if [ -f "${git_root}/CLAUDE.md" ]; then
+            print_info "Creating symlink for CLAUDE.md..."
+            ln -s "${git_root}/CLAUDE.md" "${worktree_path}/CLAUDE.md"
+        fi
+        return 0
+    fi
+    
+    # Source the configuration file
+    source "$config_file"
+    
+    # Check if SYMLINK_FILES is defined and not empty
+    if [ -z "$SYMLINK_FILES" ] || [ -z "$(echo "$SYMLINK_FILES" | tr -d '[:space:]')" ]; then
+        print_info "No files to symlink in .claude-worktrees.rc"
+        return 0
+    fi
+    
+    # Create symlinks for each file
+    echo "$SYMLINK_FILES" | while read -r file; do
+        # Skip empty lines
+        [ -z "$file" ] && continue
+        
+        if [ -f "${git_root}/${file}" ]; then
+            print_info "Creating symlink for ${file}..."
+            ln -s "${git_root}/${file}" "${worktree_path}/${file}"
+        else
+            print_info "${file} not found in main repository, skipping symlink"
+        fi
+    done
+    
+    return 0
+}
+
 # Main script
 main() {
     # Check if ticket ID is provided
@@ -232,31 +322,19 @@ main() {
     print_info "Creating worktree at $worktree_path..."
     git worktree add "$worktree_path" -b "$branch_name"
     
-    # Check if .envrc exists in main repo
-    if [ -f "${git_root}/.envrc" ]; then
-        print_info "Creating symlink for .envrc..."
-        ln -s "${git_root}/.envrc" "${worktree_path}/.envrc"
-        
-        # Check if direnv is available
-        if command -v direnv &> /dev/null; then
-            print_info "Running direnv allow..."
-            cd "$worktree_path"
-            direnv allow
-        else
-            print_info "direnv not found, skipping direnv allow"
-            cd "$worktree_path"
-        fi
-    else
-        print_info ".envrc not found in main repository, skipping symlink"
+    # Setup symlinks from configuration or defaults
+    setup_symlinks "$worktree_path" "$git_root"
+    
+    # Setup MCP servers for the worktree
+    setup_mcp_servers "$worktree_path" "$git_root"
+    
+    # Check if direnv is available and .envrc was symlinked
+    if [ -L "${worktree_path}/.envrc" ] && command -v direnv &> /dev/null; then
+        print_info "Running direnv allow..."
         cd "$worktree_path"
-    fi
-
-    # Check if CLAUDE.md exists in main repo
-    if [ -f "${git_root}/CLAUDE.md" ]; then
-        print_info "Creating symlink for CLAUDE.md..."
-        ln -s "${git_root}/CLAUDE.md" "${worktree_path}/CLAUDE.md"
+        direnv allow
     else
-        print_info "CLAUDE.md not found in main repository, skipping symlink"
+        cd "$worktree_path"
     fi
 
     print_success "Worktree created successfully!"
@@ -273,9 +351,6 @@ main() {
         print_info "Launching Claude Code to implement $ticket_id..."
         local claude_cmd
         claude_cmd=$(get_claude_path)
-        # Set CLAUDE_PROJECT_ROOT to main repository to inherit MCP server settings
-        export CLAUDE_PROJECT_ROOT="${git_root}"
-        print_info "Setting CLAUDE_PROJECT_ROOT to: $git_root"
         # Launch claude in interactive mode (foreground)
         exec $claude_cmd "Please implement Linear ticket $ticket_id. Start by fetching the ticket details from Linear."
     else

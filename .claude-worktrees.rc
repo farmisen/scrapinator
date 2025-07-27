@@ -1,0 +1,15 @@
+# Configuration file for create-worktree script
+# This file defines MCP servers and files to symlink for git worktrees
+
+# MCP Server Configuration
+# Format: SERVER_NAME|COMMAND|ARG1|ARG2|...
+MCP_SERVERS="
+linear|npx|-y|mcp-remote|https://mcp.linear.app/sse
+"
+
+# Files to symlink from main repository to worktree
+# One file per line
+SYMLINK_FILES="
+.envrc
+CLAUDE.md
+"
