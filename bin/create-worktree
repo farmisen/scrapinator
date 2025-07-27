@@ -273,6 +273,9 @@ main() {
         print_info "Launching Claude Code to implement $ticket_id..."
         local claude_cmd
         claude_cmd=$(get_claude_path)
+        # Set CLAUDE_PROJECT_ROOT to main repository to inherit MCP server settings
+        export CLAUDE_PROJECT_ROOT="${git_root}"
+        print_info "Setting CLAUDE_PROJECT_ROOT to: $git_root"
         # Launch claude in interactive mode (foreground)
         exec $claude_cmd "Please implement Linear ticket $ticket_id. Start by fetching the ticket details from Linear."
     else
