@@ -151,16 +151,9 @@ main() {
     print_info "Fetching branch name from Linear for $ticket_id..."
     local branch_name
     
-    # Enable alias expansion for non-interactive shells
-    shopt -s expand_aliases 2>/dev/null || true
-    
-    # Source profile to get claude alias
-    if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
-        source "$HOME/.bashrc"
-    elif [ -n "$ZSH_VERSION" ] && [ -f "$HOME/.zshrc" ]; then
+    # Source zsh profile to get claude alias (assuming zsh shell)
+    if [ -f "$HOME/.zshrc" ]; then
         source "$HOME/.zshrc"
-    elif [ -f "$HOME/.bash_profile" ]; then
-        source "$HOME/.bash_profile"
     fi
     
     if check_claude_available; then
@@ -209,15 +202,9 @@ main() {
     # Ensure PATH includes user's local bin for claude command
     export PATH="$HOME/.local/bin:$PATH"
     
-    # Source shell profile to ensure claude alias is available
-    if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
-        source "$HOME/.bashrc"
-    elif [ -n "$ZSH_VERSION" ] && [ -f "$HOME/.zshrc" ]; then
+    # Source zsh profile to ensure claude alias is available (assuming zsh shell)
+    if [ -f "$HOME/.zshrc" ]; then
         source "$HOME/.zshrc"
-    elif [ -f "$HOME/.bash_profile" ]; then
-        source "$HOME/.bash_profile"
-    elif [ -f "$HOME/.profile" ]; then
-        source "$HOME/.profile"
     fi
     
     # Launch Claude if available
