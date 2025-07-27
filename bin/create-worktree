@@ -161,8 +161,14 @@ setup_mcp_servers() {
         
         # Use claude mcp add command with local scope
         # The full command is already provided as a single string
-        if ! "$claude_cmd" mcp add --scope local "$server_name" "$full_command"; then
+        local output
+        if output=$("$claude_cmd" mcp add --scope local "$server_name" "$full_command" 2>&1); then
+            print_success "Added MCP server: $server_name"
+        elif echo "$output" | grep -q "already exists"; then
+            print_info "MCP server $server_name already configured, skipping"
+        else
             print_error "Failed to add MCP server: $server_name"
+            print_error "Error: $output"
         fi
     done
     
