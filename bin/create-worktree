@@ -251,6 +251,14 @@ main() {
         cd "$worktree_path"
     fi
 
+    # Check if CLAUDE.md exists in main repo
+    if [ -f "${git_root}/CLAUDE.md" ]; then
+        print_info "Creating symlink for CLAUDE.md..."
+        ln -s "${git_root}/CLAUDE.md" "${worktree_path}/CLAUDE.md"
+    else
+        print_info "CLAUDE.md not found in main repository, skipping symlink"
+    fi
+
     print_success "Worktree created successfully!"
     print_info "You are now in: $worktree_path"
     
