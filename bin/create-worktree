@@ -203,11 +203,12 @@ main() {
         print_info "Checking claude version..."
         $claude_cmd --version || print_error "Failed to get claude version"
 
-        print_info "Fetching branch name from Linear..."
-        print_info "Running: gtimeout 30s $claude_cmd --no-interactive \"Fetch the git branch name...\""
-        branch_name=$(gtimeout 30s $claude_cmd --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
+        print_info "Fetching branch name from Linear (without timeout for debugging)..."
+        print_info "Running: $claude_cmd --no-interactive \"Fetch the git branch name...\""
+        branch_name=$($claude_cmd --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
         local exit_code=$?
         print_info "Command completed with exit code: $exit_code"
+        print_info "Claude output (first 500 chars): ${branch_name:0:500}"
 
         # Check if Claude command failed or timed out
         if [ $exit_code -eq 124 ]; then
