@@ -151,13 +151,13 @@ main() {
     print_info "Fetching branch name from Linear for $ticket_id..."
     local branch_name
     
-    # Source zsh profile to get claude alias (assuming zsh shell)
-    if [ -f "$HOME/.zshrc" ]; then
-        source "$HOME/.zshrc"
-    fi
-    
     if check_claude_available; then
-        branch_name=$(claude --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>/dev/null | tail -n 1)
+        # Use the full path to claude if it's an alias
+        local claude_cmd="claude"
+        if [ -f "$HOME/.claude/local/claude" ]; then
+            claude_cmd="$HOME/.claude/local/claude"
+        fi
+        branch_name=$($claude_cmd --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>/dev/null | tail -n 1)
         
         # Fallback if Claude doesn't provide a valid branch name
         if [[ ! "$branch_name" =~ ^farmisen/.*$ ]]; then
@@ -202,15 +202,15 @@ main() {
     # Ensure PATH includes user's local bin for claude command
     export PATH="$HOME/.local/bin:$PATH"
     
-    # Source zsh profile to ensure claude alias is available (assuming zsh shell)
-    if [ -f "$HOME/.zshrc" ]; then
-        source "$HOME/.zshrc"
-    fi
-    
     # Launch Claude if available
     if check_claude_available; then
         print_info "Launching Claude Code to implement $ticket_id..."
-        claude "Please implement Linear ticket $ticket_id. Start by fetching the ticket details from Linear." &
+        # Use the full path to claude if it's an alias
+        local claude_cmd="claude"
+        if [ -f "$HOME/.claude/local/claude" ]; then
+            claude_cmd="$HOME/.claude/local/claude"
+        fi
+        $claude_cmd "Please implement Linear ticket $ticket_id. Start by fetching the ticket details from Linear." &
         print_success "Claude Code launched in the background"
     fi
 
