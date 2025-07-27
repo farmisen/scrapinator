@@ -53,6 +53,44 @@ check_claude_available() {
     return 0
 }
 
+check_uv_available() {
+    if ! command -v uv &> /dev/null; then
+        print_error "uv not found. Please install it first."
+        print_info "Visit https://github.com/astral-sh/uv for installation instructions"
+        return 1
+    fi
+    return 0
+}
+
+setup_python_environment() {
+    local worktree_path="$1"
+    
+    print_info "Setting up Python environment with uv..."
+    
+    # Check if uv is available
+    if ! check_uv_available; then
+        print_error "Cannot setup Python environment without uv"
+        return 1
+    fi
+    
+    # Create virtual environment
+    print_info "Creating virtual environment..."
+    if ! uv venv; then
+        print_error "Failed to create virtual environment"
+        return 1
+    fi
+    
+    # Install dependencies
+    print_info "Installing project dependencies..."
+    if ! uv pip install -e ".[dev]"; then
+        print_error "Failed to install dependencies"
+        return 1
+    fi
+    
+    print_success "Python environment setup complete"
+    return 0
+}
+
 # Main script
 main() {
     # Check if ticket ID is provided
@@ -151,6 +189,19 @@ main() {
 
     print_success "Worktree created successfully!"
     print_info "You are now in: $worktree_path"
+    
+    # Setup Python environment
+    setup_python_environment "$worktree_path"
+    
+    # Ensure PATH includes user's local bin for claude command
+    export PATH="$HOME/.local/bin:$PATH"
+    
+    # Source shell profile to ensure claude is available
+    if [ -f "$HOME/.bashrc" ]; then
+        source "$HOME/.bashrc"
+    elif [ -f "$HOME/.zshrc" ]; then
+        source "$HOME/.zshrc"
+    fi
     
     # Launch Claude if available
     if check_claude_available; then
