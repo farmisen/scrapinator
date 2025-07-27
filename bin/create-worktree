@@ -162,8 +162,15 @@ setup_mcp_servers() {
         
         print_info "Adding MCP server: $server_name"
         
-        # Use claude mcp add command
-        if ! "$claude_cmd" mcp add --project "$worktree_path" "$server_name" "$command" "${args_array[@]}"; then
+        # Build the full command string with all arguments
+        local full_command="$command"
+        for arg in "${args_array[@]}"; do
+            full_command="$full_command $arg"
+        done
+        
+        # Use claude mcp add command with local scope
+        # Pass the entire command as a single quoted string
+        if ! "$claude_cmd" mcp add --scope local "$server_name" "$full_command"; then
             print_error "Failed to add MCP server: $server_name"
         fi
     done
@@ -325,16 +332,16 @@ main() {
     # Setup symlinks from configuration or defaults
     setup_symlinks "$worktree_path" "$git_root"
     
-    # Setup MCP servers for the worktree
+    # Navigate to worktree directory
+    cd "$worktree_path"
+    
+    # Setup MCP servers for the worktree (must be done after cd)
     setup_mcp_servers "$worktree_path" "$git_root"
     
     # Check if direnv is available and .envrc was symlinked
     if [ -L "${worktree_path}/.envrc" ] && command -v direnv &> /dev/null; then
         print_info "Running direnv allow..."
-        cd "$worktree_path"
         direnv allow
-    else
-        cd "$worktree_path"
     fi
 
     print_success "Worktree created successfully!"
