@@ -48,19 +48,19 @@ get_claude_path() {
     # Use CLAUDE_HOME env var, defaulting to ~/.claude/local
     local claude_home="${CLAUDE_HOME:-$HOME/.claude/local}"
     local claude_path="$claude_home/claude"
-    
+
     # Check if claude executable exists at CLAUDE_HOME location
     if [ -f "$claude_path" ] && [ -x "$claude_path" ]; then
         echo "$claude_path"
         return 0
     fi
-    
+
     # Fallback to checking if claude is in PATH
     if command -v claude &> /dev/null; then
         echo "claude"
         return 0
     fi
-    
+
     # Return empty string if not found
     echo ""
     return 1
@@ -69,7 +69,7 @@ get_claude_path() {
 check_claude_available() {
     local claude_path
     claude_path=$(get_claude_path)
-    
+
     if [ -z "$claude_path" ]; then
         local claude_home="${CLAUDE_HOME:-$HOME/.claude/local}"
         print_error "Claude Code CLI not found. Please install it first."
@@ -77,7 +77,7 @@ check_claude_available() {
         print_info "Visit https://claude.ai/code for installation instructions"
         return 1
     fi
-    
+
     return 0
 }
 
@@ -92,29 +92,29 @@ check_uv_available() {
 
 setup_python_environment() {
     local worktree_path="$1"
-    
+
     print_info "Setting up Python environment with uv..."
-    
+
     # Check if uv is available
     if ! check_uv_available; then
         print_error "Cannot setup Python environment without uv"
         return 1
     fi
-    
+
     # Create virtual environment
     print_info "Creating virtual environment..."
     if ! uv venv; then
         print_error "Failed to create virtual environment"
         return 1
     fi
-    
+
     # Install dependencies
     print_info "Installing project dependencies..."
     if ! uv pip install -e ".[dev]"; then
         print_error "Failed to install dependencies"
         return 1
     fi
-    
+
     print_success "Python environment setup complete"
     return 0
 }
@@ -142,11 +142,11 @@ main() {
     if ! check_claude_available; then
         exit 1
     fi
-    
+
     if ! check_uv_available; then
         exit 1
     fi
-    
+
     # Check for gtimeout (GNU coreutils on macOS)
     if ! command -v gtimeout &> /dev/null; then
         print_error "gtimeout not found. Please install GNU coreutils first."
@@ -195,31 +195,38 @@ main() {
     local branch_name
     local claude_cmd
     claude_cmd=$(get_claude_path)
-    
+
     print_info "Using claude command: $claude_cmd"
-    
-    # Run claude with timeout to prevent hanging (using gtimeout on macOS)
-    branch_name=$(gtimeout 30s $claude_cmd --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
-    local exit_code=$?
-    
-    # Check if Claude command failed or timed out
-    if [ $exit_code -eq 124 ]; then
-        print_error "Claude command timed out after 30 seconds"
-        exit 1
-    elif [ $exit_code -ne 0 ]; then
-        print_error "Failed to fetch branch name from Linear (exit code: $exit_code)"
-        print_info "Claude output: $branch_name"
-        exit 1
-    fi
-    
-    # Extract the last line (the branch name)
-    branch_name=$(echo "$branch_name" | tail -n 1)
-    
-    # Validate the branch name format
-    if [[ ! "$branch_name" =~ ^farmisen/.*$ ]]; then
-        print_error "Invalid branch name received from Linear: '$branch_name'"
-        print_info "Expected format: farmisen/<ticket-id>-<description>"
-        exit 1
+
+    if check_claude_available; then
+        # Check claude version for debugging
+        print_info "Checking claude version..."
+        claude --version || print_error "Failed to get claude version"
+
+        print_info "Fetching branch name from Linear..."
+        branch_name=$(gtimeout 30s claude --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
+        local exit_code=$?
+
+        # Check if Claude command failed or timed out
+        if [ $exit_code -eq 124 ]; then
+            print_error "Claude command timed out after 30 seconds"
+            exit 1
+        elif [ $exit_code -ne 0 ]; then
+            print_error "Failed to fetch branch name from Linear (exit code: $exit_code)"
+            print_info "Claude output: $branch_name"
+            exit 1
+        fi
+
+        # Extract the last line (the branch name)
+        branch_name=$(echo "$branch_name" | tail -n 1)
+        
+        # Fallback if Claude doesn't provide a valid branch name
+        if [[ ! "$branch_name" =~ ^farmisen/.*$ ]]; then
+            branch_name="farmisen/${ticket_slug}-feature"
+        fi
+    else
+        # Fallback branch name if Claude is not available
+        branch_name="farmisen/${ticket_slug}-feature"
     fi
 
     print_info "Using branch name: $branch_name"
@@ -252,10 +259,10 @@ main() {
     
     # Setup Python environment
     setup_python_environment "$worktree_path"
-    
+
     # Ensure PATH includes user's local bin for claude command
     export PATH="$HOME/.local/bin:$PATH"
-    
+
     # Launch Claude if available
     if check_claude_available; then
         print_info "Launching Claude Code to implement $ticket_id..."
