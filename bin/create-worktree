@@ -4,6 +4,13 @@ set -euo pipefail
 # Script to create a git worktree for a Linear ticket
 # Usage: ./create-worktree <ticket-id>
 
+# If we're not already running from temp, copy ourselves to temp and re-exec
+if [[ "$0" != /tmp/* ]]; then
+    cp "$0" /tmp/create-worktree-$$
+    chmod +x /tmp/create-worktree-$$
+    exec /tmp/create-worktree-$$ "$@"
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -44,12 +51,78 @@ get_git_root() {
     }
 }
 
+get_claude_path() {
+    # Use CLAUDE_HOME env var, defaulting to ~/.claude/local
+    local claude_home="${CLAUDE_HOME:-$HOME/.claude/local}"
+    local claude_path="$claude_home/claude"
+
+    # Check if claude executable exists at CLAUDE_HOME location
+    if [ -f "$claude_path" ] && [ -x "$claude_path" ]; then
+        echo "$claude_path"
+        return 0
+    fi
+
+    # Fallback to checking if claude is in PATH
+    if command -v claude &> /dev/null; then
+        echo "claude"
+        return 0
+    fi
+
+    # Return empty string if not found
+    echo ""
+    return 1
+}
+
 check_claude_available() {
-    if ! command -v claude &> /dev/null; then
+    local claude_path
+    claude_path=$(get_claude_path)
+
+    if [ -z "$claude_path" ]; then
+        local claude_home="${CLAUDE_HOME:-$HOME/.claude/local}"
         print_error "Claude Code CLI not found. Please install it first."
+        print_info "Expected location: $claude_home/claude or in PATH"
         print_info "Visit https://claude.ai/code for installation instructions"
         return 1
     fi
+
+    return 0
+}
+
+check_uv_available() {
+    if ! command -v uv &> /dev/null; then
+        print_error "uv not found. Please install it first."
+        print_info "Visit https://github.com/astral-sh/uv for installation instructions"
+        return 1
+    fi
+    return 0
+}
+
+setup_python_environment() {
+    local worktree_path="$1"
+
+    print_info "Setting up Python environment with uv..."
+
+    # Check if uv is available
+    if ! check_uv_available; then
+        print_error "Cannot setup Python environment without uv"
+        return 1
+    fi
+
+    # Create virtual environment
+    print_info "Creating virtual environment..."
+    if ! uv venv; then
+        print_error "Failed to create virtual environment"
+        return 1
+    fi
+
+    # Install dependencies
+    print_info "Installing project dependencies..."
+    if ! uv pip install -e ".[dev]"; then
+        print_error "Failed to install dependencies"
+        return 1
+    fi
+
+    print_success "Python environment setup complete"
     return 0
 }
 
@@ -71,6 +144,15 @@ main() {
     fi
 
     print_info "Processing ticket $ticket_id"
+
+    # Check dependencies early
+    if ! check_claude_available; then
+        exit 1
+    fi
+
+    if ! check_uv_available; then
+        exit 1
+    fi
 
     # Get git root directory
     local git_root
@@ -108,20 +190,40 @@ main() {
     print_info "Pulling latest changes from main..."
     git pull origin main
 
-    # Get branch name from Claude
-    print_info "Getting branch name suggestion for $ticket_id..."
+    # Get branch name from Linear
+    print_info "Fetching branch name from Linear for $ticket_id..."
     local branch_name
-    
+    local claude_cmd
+    claude_cmd=$(get_claude_path)
+
+    print_info "Using claude command: $claude_cmd"
+
     if check_claude_available; then
-        branch_name=$(claude --no-interactive "For Linear ticket $ticket_id, suggest a git branch name following the pattern: farmisen/<ticket-id>-<descriptive-name>. Output only the branch name, nothing else." 2>/dev/null | tail -n 1)
+        print_info "Fetching branch name from Linear..."
+        branch_name=$($claude_cmd --print "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
+        local exit_code=$?
+        print_info "Command completed with exit code: $exit_code"
+        print_info "Claude output (first 500 chars): ${branch_name:0:500}"
+
+        # Check if Claude command failed
+        if [ $exit_code -ne 0 ]; then
+            print_error "Failed to fetch branch name from Linear (exit code: $exit_code)"
+            print_info "Claude output: $branch_name"
+            exit 1
+        fi
+
+        # Extract the last line (the branch name) and remove backticks if present
+        branch_name=$(echo "$branch_name" | tail -n 1 | sed 's/^`//' | sed 's/`$//')
         
-        # Fallback if Claude doesn't provide a valid branch name
+        # Validate the branch name format
         if [[ ! "$branch_name" =~ ^farmisen/.*$ ]]; then
-            branch_name="farmisen/${ticket_slug}-feature"
+            print_error "Invalid branch name received from Linear: '$branch_name'"
+            print_info "Expected format: farmisen/<ticket-id>-<description>"
+            exit 1
         fi
     else
-        # Fallback branch name if Claude is not available
-        branch_name="farmisen/${ticket_slug}-feature"
+        print_error "Cannot fetch branch name from Linear without Claude Code CLI"
+        exit 1
     fi
 
     print_info "Using branch name: $branch_name"
@@ -152,15 +254,23 @@ main() {
     print_success "Worktree created successfully!"
     print_info "You are now in: $worktree_path"
     
+    # Setup Python environment
+    setup_python_environment "$worktree_path"
+
+    # Ensure PATH includes user's local bin for claude command
+    export PATH="$HOME/.local/bin:$PATH"
+
     # Launch Claude if available
     if check_claude_available; then
         print_info "Launching Claude Code to implement $ticket_id..."
-        claude "Please implement Linear ticket $ticket_id. Start by fetching the ticket details from Linear." &
-        print_success "Claude Code launched in the background"
+        local claude_cmd
+        claude_cmd=$(get_claude_path)
+        # Launch claude in interactive mode (foreground)
+        exec $claude_cmd "Please implement Linear ticket $ticket_id. Start by fetching the ticket details from Linear."
+    else
+        # Start a new shell in the worktree directory if claude is not available
+        exec "$SHELL"
     fi
-
-    # Start a new shell in the worktree directory
-    exec "$SHELL"
 }
 
 # Run main function
