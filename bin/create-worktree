@@ -201,10 +201,10 @@ main() {
     if check_claude_available; then
         # Check claude version for debugging
         print_info "Checking claude version..."
-        claude --version || print_error "Failed to get claude version"
+        $claude_cmd --version || print_error "Failed to get claude version"
 
         print_info "Fetching branch name from Linear..."
-        branch_name=$(gtimeout 30s claude --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
+        branch_name=$(gtimeout 30s $claude_cmd --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
         local exit_code=$?
 
         # Check if Claude command failed or timed out
@@ -220,9 +220,11 @@ main() {
         # Extract the last line (the branch name)
         branch_name=$(echo "$branch_name" | tail -n 1)
         
-        # Fallback if Claude doesn't provide a valid branch name
+        # Validate the branch name format
         if [[ ! "$branch_name" =~ ^farmisen/.*$ ]]; then
-            branch_name="farmisen/${ticket_slug}-feature"
+            print_error "Invalid branch name received from Linear: '$branch_name'"
+            print_info "Expected format: farmisen/<ticket-id>-<description>"
+            exit 1
         fi
     else
         # Fallback branch name if Claude is not available
