@@ -146,6 +146,13 @@ main() {
     if ! check_uv_available; then
         exit 1
     fi
+    
+    # Check for gtimeout (GNU coreutils on macOS)
+    if ! command -v gtimeout &> /dev/null; then
+        print_error "gtimeout not found. Please install GNU coreutils first."
+        print_info "Run: brew install coreutils"
+        exit 1
+    fi
 
     # Get git root directory
     local git_root
@@ -191,8 +198,8 @@ main() {
     
     print_info "Using claude command: $claude_cmd"
     
-    # Run claude with timeout to prevent hanging
-    branch_name=$(timeout 30s $claude_cmd --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
+    # Run claude with timeout to prevent hanging (using gtimeout on macOS)
+    branch_name=$(gtimeout 30s $claude_cmd --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>&1)
     local exit_code=$?
     
     # Check if Claude command failed or timed out
