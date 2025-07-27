@@ -220,8 +220,8 @@ main() {
             exit 1
         fi
 
-        # Extract the last line (the branch name)
-        branch_name=$(echo "$branch_name" | tail -n 1)
+        # Extract the last line (the branch name) and remove backticks if present
+        branch_name=$(echo "$branch_name" | tail -n 1 | sed 's/^`//' | sed 's/`$//')
         
         # Validate the branch name format
         if [[ ! "$branch_name" =~ ^farmisen/.*$ ]]; then
