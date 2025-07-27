@@ -4,6 +4,13 @@ set -euo pipefail
 # Script to create a git worktree for a Linear ticket
 # Usage: ./create-worktree <ticket-id>
 
+# If we're not already running from temp, copy ourselves to temp and re-exec
+if [[ "$0" != /tmp/* ]]; then
+    cp "$0" /tmp/create-worktree-$$
+    chmod +x /tmp/create-worktree-$$
+    exec /tmp/create-worktree-$$ "$@"
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
