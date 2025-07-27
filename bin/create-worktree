@@ -45,7 +45,8 @@ get_git_root() {
 }
 
 check_claude_available() {
-    if ! command -v claude &> /dev/null; then
+    # Check if claude command is available (works with aliases too)
+    if ! type claude &> /dev/null; then
         print_error "Claude Code CLI not found. Please install it first."
         print_info "Visit https://claude.ai/code for installation instructions"
         return 1
@@ -146,12 +147,24 @@ main() {
     print_info "Pulling latest changes from main..."
     git pull origin main
 
-    # Get branch name from Claude
-    print_info "Getting branch name suggestion for $ticket_id..."
+    # Get branch name from Linear
+    print_info "Fetching branch name from Linear for $ticket_id..."
     local branch_name
     
+    # Enable alias expansion for non-interactive shells
+    shopt -s expand_aliases 2>/dev/null || true
+    
+    # Source profile to get claude alias
+    if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
+        source "$HOME/.bashrc"
+    elif [ -n "$ZSH_VERSION" ] && [ -f "$HOME/.zshrc" ]; then
+        source "$HOME/.zshrc"
+    elif [ -f "$HOME/.bash_profile" ]; then
+        source "$HOME/.bash_profile"
+    fi
+    
     if check_claude_available; then
-        branch_name=$(claude --no-interactive "For Linear ticket $ticket_id, suggest a git branch name following the pattern: farmisen/<ticket-id>-<descriptive-name>. Output only the branch name, nothing else." 2>/dev/null | tail -n 1)
+        branch_name=$(claude --no-interactive "Fetch the git branch name for Linear ticket $ticket_id using the Linear MCP tool. Output only the branch name, nothing else." 2>/dev/null | tail -n 1)
         
         # Fallback if Claude doesn't provide a valid branch name
         if [[ ! "$branch_name" =~ ^farmisen/.*$ ]]; then
@@ -196,11 +209,15 @@ main() {
     # Ensure PATH includes user's local bin for claude command
     export PATH="$HOME/.local/bin:$PATH"
     
-    # Source shell profile to ensure claude is available
-    if [ -f "$HOME/.bashrc" ]; then
+    # Source shell profile to ensure claude alias is available
+    if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
         source "$HOME/.bashrc"
-    elif [ -f "$HOME/.zshrc" ]; then
+    elif [ -n "$ZSH_VERSION" ] && [ -f "$HOME/.zshrc" ]; then
         source "$HOME/.zshrc"
+    elif [ -f "$HOME/.bash_profile" ]; then
+        source "$HOME/.bash_profile"
+    elif [ -f "$HOME/.profile" ]; then
+        source "$HOME/.profile"
     fi
     
     # Launch Claude if available
