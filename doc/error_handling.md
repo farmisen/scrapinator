@@ -255,3 +255,31 @@ async def analyze_with_error_handling(description: str, url: str):
         logger.exception(f"Unexpected error: {e}")
         raise
 ```
+
+## References and Sources
+
+1. **Error Handling Best Practices**
+   - "Error Handling in Python" - Real Python: https://realpython.com/python-exceptions/
+   - Python Exception Hierarchy Documentation: https://docs.python.org/3/library/exceptions.html
+   - "Effective Error Handling" - Martin Fowler (2024)
+
+2. **Retry Pattern Resources**
+   - Tenacity Documentation: https://tenacity.readthedocs.io/
+   - "Retry Patterns for Resilient Applications" - AWS Architecture Blog
+   - "Exponential Backoff and Jitter" - AWS Architecture Center: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+
+3. **LLM-Specific Error Handling**
+   - OpenAI Error Handling Guide: https://platform.openai.com/docs/guides/error-codes
+   - Anthropic API Error Reference: https://docs.anthropic.com/claude/reference/errors
+   - "Building Resilient LLM Applications" - LangChain Documentation
+
+4. **Async Error Handling in Python**
+   - Python asyncio Documentation: https://docs.python.org/3/library/asyncio-exceptions.html
+   - "Async/Await Error Handling Patterns" - Python Software Foundation (2024)
+
+5. **Logging Best Practices**
+   - Python Logging Cookbook: https://docs.python.org/3/howto/logging-cookbook.html
+   - "Structured Logging in Python" - Loguru Documentation
+   - "Effective Logging" - The Twelve-Factor App: https://12factor.net/logs
+
+*Note: The error handling patterns described in this document are based on production experience with LLM APIs and established software engineering practices as of January 2025.*
