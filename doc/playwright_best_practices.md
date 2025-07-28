@@ -977,14 +977,20 @@ STEALTH_CONFIG = {
 
 ### Performance Benchmarks
 
-Based on testing with common web scraping scenarios:
+*Note: These are representative benchmarks based on industry research and common patterns. Actual performance will vary based on:*
+- *Target website complexity and response times*
+- *Network conditions*
+- *Hardware specifications*
+- *Specific implementation details*
 
-| Configuration | Pages/Second | Memory Usage | CPU Usage | Reliability |
-|--------------|--------------|--------------|-----------|-------------|
+| Configuration | Pages/Second* | Memory Usage | CPU Usage | Reliability |
+|--------------|---------------|--------------|-----------|-------------|
 | Single Browser, Sequential | 2-3 | Low (200MB) | Low (20%) | High |
 | Single Browser, 5 Concurrent | 8-12 | Medium (500MB) | Medium (50%) | High |
 | Browser Pool (5), 20 Concurrent | 25-35 | High (2GB) | High (80%) | Medium |
 | Headless, Resource Blocking | 40-50 | Medium (800MB) | High (90%) | Medium |
+
+*Pages/Second assumes average page load time of 1-2 seconds. Your results will vary.
 
 ### Error Handling Checklist
 

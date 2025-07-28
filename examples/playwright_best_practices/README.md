@@ -43,9 +43,30 @@ Security best practices for untrusted content:
 - Isolated execution contexts
 - Security auditing
 
+## Installation
+
+To run these examples, you need to install the project with its dependencies:
+
+```bash
+# Install project with dev dependencies (recommended)
+make install
+
+# Or using uv directly
+uv pip install -e ".[dev]"
+
+# Install Playwright browsers (if not already installed)
+playwright install chromium
+```
+
+**Note**: The security_patterns.py example requires `psutil` for resource monitoring, which is not included in the base dependencies. Install it separately if needed:
+
+```bash
+uv pip install psutil
+```
+
 ## Running the Examples
 
-Each example can be run independently:
+Each example can be run independently from the project root:
 
 ```bash
 python examples/playwright_best_practices/efficient_page_loading.py
@@ -55,17 +76,11 @@ python examples/playwright_best_practices/error_handling_patterns.py
 python examples/playwright_best_practices/security_patterns.py
 ```
 
-## Requirements
-
-These examples require Playwright to be installed:
-
-```bash
-pip install playwright
-playwright install chromium
-```
-
-Additional requirements for specific examples:
-- `psutil` for resource monitoring (browser_pool_manager.py, security_patterns.py)
+**Important Notes:**
+- These examples connect to real websites (example.com, example.org) for demonstration purposes
+- Some examples may take 30-60 seconds to complete due to multiple page loads
+- The performance benchmarks example intentionally performs many operations and may take several minutes
+- If examples hang or timeout, check your internet connection and ensure the target sites are accessible
 
 ## Key Takeaways
 
