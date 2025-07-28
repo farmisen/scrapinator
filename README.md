@@ -146,31 +146,31 @@ pyright
 
 ### Using Make Commands
 
-The project includes a Makefile for common development tasks:
+The project includes development commands via the make.sh wrapper:
 
 ```bash
-make help        # Show available commands
-make install     # Install project with dev dependencies
-make lint        # Run Ruff linter
-make format      # Format code with Ruff
-make format-check # Check code formatting without modifying files
-make fix         # Auto-fix code issues (format + safe linting fixes)
-make type-check  # Run Pyright type checker
-make test        # Run pytest tests
-make dev-check   # Run all checks (format-check, lint, type-check)
-make clean       # Remove cache files
+./make.sh help        # Show available commands
+./make.sh install     # Install project with dev dependencies
+./make.sh lint        # Run Ruff linter
+./make.sh format      # Format code with Ruff
+./make.sh format-check # Check code formatting without modifying files
+./make.sh fix         # Auto-fix code issues (format + safe linting fixes)
+./make.sh type-check  # Run Pyright type checker
+./make.sh test        # Run pytest tests
+./make.sh dev-check   # Run all checks (format-check, lint, type-check)
+./make.sh clean       # Remove cache files
 ```
 
 #### Auto-fixing Code Issues
 
-The `make fix` command automatically fixes common code quality issues:
+The `./make.sh fix` command automatically fixes common code quality issues:
 
 ```bash
 # Automatically format code and fix safe linting issues
-make fix
+./make.sh fix
 
 # Then run checks to see any remaining issues
-make dev-check
+./make.sh dev-check
 ```
 
 This command will:
