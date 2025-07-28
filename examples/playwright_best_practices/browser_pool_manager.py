@@ -11,10 +11,8 @@ import time
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator  # noqa: TC004
 
 from playwright.async_api import Browser, Page, async_playwright
 

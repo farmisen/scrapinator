@@ -52,7 +52,15 @@ class EfficientPageLoader:
         async def handle_route(route):
             resource_type = route.request.resource_type
             if resource_type in ["image", "stylesheet", "font", "media"]:
-                blocked_count[f"{resource_type}s"] = blocked_count.get(f"{resource_type}s", 0) + 1
+                # Update count based on resource type
+                if resource_type == "image":
+                    blocked_count["images"] += 1
+                elif resource_type == "stylesheet":
+                    blocked_count["stylesheets"] += 1
+                elif resource_type == "font":
+                    blocked_count["fonts"] += 1
+                elif resource_type == "media":
+                    blocked_count["media"] += 1
                 await route.abort()
             else:
                 await route.continue_()

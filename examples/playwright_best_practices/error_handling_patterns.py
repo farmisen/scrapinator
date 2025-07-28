@@ -15,11 +15,9 @@ from datetime import UTC, datetime
 from enum import Enum
 from functools import wraps
 from pathlib import Path
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 from playwright.async_api import Page, async_playwright
 from playwright.async_api import TimeoutError as PlaywrightTimeout
@@ -180,10 +178,10 @@ class NavigationHandler:
                     }
 
                 # Log non-success status
-                logger.warning("Navigation to {url} returned status {response.status}")
+                logger.warning("Navigation to %s returned status %d", url, response.status)
 
-            except Exception:
-                logger.error("Navigation to {url} failed: {e}")
+            except Exception as e:
+                logger.error("Navigation to %s failed: %s", url, e)
 
                 if i == len(all_urls) - 1:  # Last URL
                     raise
