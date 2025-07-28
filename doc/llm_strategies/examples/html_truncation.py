@@ -60,7 +60,7 @@ def truncate_keep_structure(html: str, max_tokens: int = 2000) -> str:
     priority_tags = ["title", "h1", "h2", "h3", "button", "input", "select", "form"]
 
     # Truncate text in non-priority elements
-    for element in soup.find_all(text=True):
+    for element in soup.find_all(string=True):
         if element.parent.name not in priority_tags and len(element.strip()) > 100:
             element.replace_with(element[:50] + "...")
 

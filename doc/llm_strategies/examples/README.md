@@ -4,7 +4,12 @@ This directory contains example scripts demonstrating various LLM strategies for
 
 ## Setup
 
-Before running the examples, install the required dependencies:
+The examples require the following Python packages which are included in the main project dependencies:
+- beautifulsoup4
+- html2text  
+- markdownify
+
+If running the examples standalone, install these packages:
 
 ```bash
 pip install beautifulsoup4 html2text markdownify
