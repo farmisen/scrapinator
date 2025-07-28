@@ -517,7 +517,7 @@ async def demonstrate_error_handling() -> None:
             result = await nav_handler.navigate_with_fallback(
                 page,
                 "https://nonexistent.example.com",
-                fallback_urls=["https://example.com"],
+                fallback_urls=["https://www.example.com"],
                 options={"wait_until": "networkidle"},
             )
             print(f"Navigation result: {result}")
@@ -539,7 +539,7 @@ async def demonstrate_error_handling() -> None:
             selectors = [
                 "a.nonexistent",
                 "a[href*='nonexistent']",
-                "a[href*='more']",  # This should work on example.com
+                "a[href*='more']",  # This should work on www.example.com
             ]
 
             try:

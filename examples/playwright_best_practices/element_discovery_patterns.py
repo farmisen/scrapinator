@@ -361,7 +361,7 @@ async def demonstrate_element_discovery():
 
         try:
             # Navigate to a test page
-            await page.goto("https://example.com")
+            await page.goto("https://www.example.com")
 
             discovery = ElementDiscovery()
 

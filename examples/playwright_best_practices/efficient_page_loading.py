@@ -70,7 +70,9 @@ class EfficientPageLoader:
 
         # Measure load time
         start_time = time.time()
-        await page.goto(url, wait_until="networkidle")
+        await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        # Wait a bit for any dynamic content
+        await page.wait_for_load_state("networkidle", timeout=5000)
         load_time = time.time() - start_time
 
         # Get page metrics
@@ -140,30 +142,31 @@ class EfficientPageLoader:
         # Strategy 1: Wait for specific element (good for known pages)
         try:
             start = time.time()
-            await page.goto(url)
-            await page.wait_for_selector("body", state="visible")
+            await page.goto(url, timeout=30000)
+            await page.wait_for_selector("body", state="visible", timeout=5000)
             results["element_wait"] = time.time() - start
-        except:
-            results["element_wait"] = None
+        except Exception as e:
+            results["element_wait"] = f"Failed: {type(e).__name__}"
 
         # Strategy 2: Wait for network idle (good for SPAs)
         try:
             start = time.time()
-            await page.goto(url, wait_until="networkidle")
+            await page.goto(url, wait_until="networkidle", timeout=30000)
             results["network_idle"] = time.time() - start
-        except:
-            results["network_idle"] = None
+        except Exception as e:
+            results["network_idle"] = f"Failed: {type(e).__name__}"
 
         # Strategy 3: Custom wait function (good for dynamic content)
         try:
             start = time.time()
-            await page.goto(url)
+            await page.goto(url, timeout=30000)
             await page.wait_for_function(
-                "document.readyState === 'complete' && document.images.length > 0"
+                "document.readyState === 'complete'",
+                timeout=5000
             )
             results["custom_wait"] = time.time() - start
-        except:
-            results["custom_wait"] = None
+        except Exception as e:
+            results["custom_wait"] = f"Failed: {type(e).__name__}"
 
         await context.close()
         return results
@@ -190,7 +193,7 @@ async def main():
     try:
         # Example 1: Load with resource blocking
         print("Loading with resource blocking...")
-        result = await loader.load_with_resource_blocking("https://example.com")
+        result = await loader.load_with_resource_blocking("https://www.example.com")
         print(f"Load time: {result['load_time']:.2f}s")
         print(f"Blocked resources: {result['blocked_resources']}")
         print(f"DOM nodes: {result['metrics']['domNodes']}")
@@ -198,7 +201,7 @@ async def main():
 
         # Example 2: Concurrent loading
         print("Loading multiple pages concurrently...")
-        urls = ["https://example.com", "https://example.org", "https://example.net"]
+        urls = ["https://www.example.com", "https://www.example.org", "https://www.example.net"]
         results = await loader.load_pages_concurrently(urls, max_concurrent=3)
         for result in results:
             if result["success"]:
@@ -209,7 +212,7 @@ async def main():
 
         # Example 3: Wait strategies comparison
         print("Comparing wait strategies...")
-        wait_results = await loader.smart_wait_strategy("https://example.com")
+        wait_results = await loader.smart_wait_strategy("https://www.example.com")
         for strategy, time_taken in wait_results.items():
             if time_taken:
                 print(f"{strategy}: {time_taken:.2f}s")

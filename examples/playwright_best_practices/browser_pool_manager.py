@@ -351,11 +351,11 @@ async def demonstrate_browser_pool() -> None:
 
         # Example URLs
         urls = [
-            "https://example.com",
-            "https://example.org",
-            "https://example.net",
-            "https://example.edu",
-            "https://example.io",
+            "https://www.example.com",
+            "https://www.example.org",
+            "https://www.example.net",
+            "https://www.example.edu",
+            "https://www.example.io",
         ] * 4  # 20 URLs total
 
         print(f"Scraping {len(urls)} URLs concurrently...")
@@ -398,7 +398,7 @@ async def performance_test() -> None:
         {"name": "Large Pool", "min": 5, "max": 10, "contexts": 20},
     ]
 
-    test_urls = ["https://example.com"] * 50
+    test_urls = ["https://www.example.com"] * 50
 
     for config in configurations:
         print(f"\nTesting {config['name']}...")

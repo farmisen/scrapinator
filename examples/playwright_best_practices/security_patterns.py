@@ -610,7 +610,7 @@ async def demonstrate_security_patterns():
                 async with executor.isolated_page(browser) as page:
                     # Test navigation
                     print("\nTesting secure navigation...")
-                    nav_result = await executor.safe_navigation(page, "https://example.com")
+                    nav_result = await executor.safe_navigation(page, "https://www.example.com")
                     print(f"Navigation result: {nav_result['success']}")
                     if nav_result["success"]:
                         print(f"Risk level: {nav_result['risk_level']}")
