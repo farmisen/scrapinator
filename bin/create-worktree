@@ -130,7 +130,7 @@ setup_python_environment() {
 setup_symlinks() {
     local worktree_path="$1"
     local git_root="$2"
-    local config_file="${git_root}/.claude-worktrees.rc"
+    local config_file="${git_root}/worktree.rc"
     
     # Check if configuration file exists
     if [ ! -f "$config_file" ]; then
@@ -151,7 +151,7 @@ setup_symlinks() {
     
     # Check if SYMLINK_FILES is defined and not empty
     if [ -z "$SYMLINK_FILES" ] || [ -z "$(echo "$SYMLINK_FILES" | tr -d '[:space:]')" ]; then
-        print_info "No files to symlink in .claude-worktrees.rc"
+        print_info "No files to symlink in worktree.rc"
         return 0
     fi
     
