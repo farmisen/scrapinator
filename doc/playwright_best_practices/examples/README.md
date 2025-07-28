@@ -69,11 +69,11 @@ uv pip install psutil
 Each example can be run independently from the project root:
 
 ```bash
-python examples/playwright_best_practices/efficient_page_loading.py
-python examples/playwright_best_practices/element_discovery_patterns.py
-python examples/playwright_best_practices/browser_pool_manager.py
-python examples/playwright_best_practices/error_handling_patterns.py
-python examples/playwright_best_practices/security_patterns.py
+python doc/playwright_best_practices/examples/efficient_page_loading.py
+python doc/playwright_best_practices/examples/element_discovery_patterns.py
+python doc/playwright_best_practices/examples/browser_pool_manager.py
+python doc/playwright_best_practices/examples/error_handling_patterns.py
+python doc/playwright_best_practices/examples/security_patterns.py
 ```
 
 **Important Notes:**

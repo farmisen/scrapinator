@@ -1007,7 +1007,7 @@ STEALTH_CONFIG = {
 
 ## Example Code
 
-The `/examples/playwright_best_practices/` directory contains runnable example code demonstrating all the patterns described in this document:
+The `examples/` subdirectory contains runnable example code demonstrating all the patterns described in this document:
 
 - `efficient_page_loading.py` - Resource blocking, parallel loading, wait strategies
 - `element_discovery_patterns.py` - Shadow DOM, iframes, dynamic content handling  
