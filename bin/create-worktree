@@ -108,21 +108,21 @@ setup_python_environment() {
         return 1
     fi
 
-    # Create virtual environment
-    print_info "Creating virtual environment..."
-    if ! uv venv; then
+    # Create virtual environment explicitly in the worktree
+    print_info "Creating virtual environment in ${worktree_path}/.venv..."
+    if ! (cd "$worktree_path" && uv venv .venv); then
         print_error "Failed to create virtual environment"
         return 1
     fi
 
-    # Install dependencies
+    # Install dependencies using the worktree's venv
     print_info "Installing project dependencies..."
-    if ! uv pip install -e ".[dev]"; then
+    if ! (cd "$worktree_path" && uv pip install -e ".[dev]"); then
         print_error "Failed to install dependencies"
         return 1
     fi
 
-    print_success "Python environment setup complete"
+    print_success "Python environment setup complete at ${worktree_path}/.venv"
     return 0
 }
 
@@ -283,24 +283,40 @@ main() {
     # Navigate to worktree directory
     cd "$worktree_path"
     
-    # Check if direnv is available and .envrc was symlinked
-    if [ -L "${worktree_path}/.envrc" ] && command -v direnv &> /dev/null; then
-        print_info "Running direnv allow..."
-        direnv allow
-    fi
-
     print_success "Worktree created successfully!"
     print_info "You are now in: $worktree_path"
     
-    # Setup Python environment
+    # Setup Python environment FIRST
     setup_python_environment "$worktree_path"
+
+    # NOW run direnv allow after the venv exists
+    if [ -L "${worktree_path}/.envrc" ] && command -v direnv &> /dev/null; then
+        print_info "Running direnv allow to activate the environment..."
+        direnv allow
+        # Force direnv to reload to pick up the new venv
+        eval "$(direnv export bash)"
+    else
+        # If no direnv, manually activate the venv
+        unset VIRTUAL_ENV
+        if [ -f "${worktree_path}/.venv/bin/activate" ]; then
+            print_info "Activating worktree virtual environment..."
+            source "${worktree_path}/.venv/bin/activate"
+        fi
+    fi
 
     # Ensure PATH includes user's local bin for claude command
     export PATH="$HOME/.local/bin:$PATH"
+    
+    # Ensure VIRTUAL_ENV is set correctly for the new process
+    export VIRTUAL_ENV="${worktree_path}/.venv"
+    
+    # Ensure the venv's bin directory is first in PATH
+    export PATH="${VIRTUAL_ENV}/bin:$PATH"
 
     # Launch Claude if available
     if check_claude_available; then
         print_info "Launching Claude Code to implement $ticket_id..."
+        print_info "Using VIRTUAL_ENV: $VIRTUAL_ENV"
         local claude_cmd
         claude_cmd=$(get_claude_path)
         # Launch claude in interactive mode (foreground)
