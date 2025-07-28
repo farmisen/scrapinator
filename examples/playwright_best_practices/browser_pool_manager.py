@@ -272,11 +272,11 @@ class BrowserPool:
             except Exception as e:
                 logger.exception("Error in browser monitor: %s", e)
 
-    def get_stats(self) -> PoolStats:
+    async def get_stats(self) -> PoolStats:
         """Get current pool statistics"""
         stats = PoolStats()
 
-        with self._lock:
+        async with self._lock:
             stats.browsers_created = len(self._browser_stats)
             stats.browsers_active = len(self._browsers)
 
@@ -349,13 +349,13 @@ async def demonstrate_browser_pool() -> None:
         # Create scraper
         scraper = ConcurrentScraper(pool)
 
-        # Example URLs
+        # Example URLs (using only domains that exist)
         urls = [
             "https://www.example.com",
             "https://www.example.org",
             "https://www.example.net",
             "https://www.example.edu",
-            "https://www.example.io",
+            "https://www.example.com",  # Repeat valid domains
         ] * 4  # 20 URLs total
 
         print(f"Scraping {len(urls)} URLs concurrently...")
@@ -375,9 +375,16 @@ async def demonstrate_browser_pool() -> None:
         print(f"  Failed: {failed}")
         print(f"  Total time: {total_time:.2f}s")
         print(f"  Avg time per URL: {total_time / len(results):.2f}s")
+        
+        # Show any errors
+        if failed > 0:
+            print("\nErrors:")
+            for r in results:
+                if not r["success"]:
+                    print(f"  {r['url']}: {r.get('error', 'Unknown error')}")
 
         # Show pool statistics
-        stats = pool.get_stats()
+        stats = await pool.get_stats()
         print("\nPool Statistics:")
         print(f"  Browsers created: {stats.browsers_created}")
         print(f"  Browsers active: {stats.browsers_active}")
