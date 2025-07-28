@@ -99,4 +99,7 @@ done
 
 ## References
 
-For more details, see the research documentation in `/doc/llm_strategies/`
+For more details, see the research documentation in the parent directory:
+- `../research_findings.md` - Comprehensive research findings
+- `../strategy_comparison.md` - Detailed strategy comparisons
+- `../recommendations.md` - Practical recommendations for implementation
