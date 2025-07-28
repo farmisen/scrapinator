@@ -89,3 +89,12 @@ python examples/playwright_best_practices/security_patterns.py
 3. **Error Resilience**: Comprehensive error handling with retry logic improves reliability
 4. **Security**: Always sanitize inputs and limit resources when dealing with untrusted content
 5. **Monitoring**: Track performance metrics to identify bottlenecks and optimize accordingly
+
+## Notes
+
+- All examples use psutil for resource monitoring, which is included in the project's dev dependencies
+- Examples are designed to run with minimal external dependencies
+- Some examples may take time to complete due to network operations and timeouts
+- Error handling examples intentionally trigger errors for demonstration purposes
+- These examples prioritize clarity and educational value over strict linting compliance
+- Some linting warnings (e.g., catching general exceptions, missing type annotations) are intentionally left in place to keep the examples focused and readable

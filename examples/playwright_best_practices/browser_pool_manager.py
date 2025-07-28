@@ -8,11 +8,11 @@ concurrent operations at scale with proper resource management.
 import asyncio
 import logging
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from playwright.async_api import Browser, Page, async_playwright
 
@@ -375,7 +375,7 @@ async def demonstrate_browser_pool() -> None:
         print(f"  Failed: {failed}")
         print(f"  Total time: {total_time:.2f}s")
         print(f"  Avg time per URL: {total_time / len(results):.2f}s")
-        
+
         # Show any errors
         if failed > 0:
             print("\nErrors:")
