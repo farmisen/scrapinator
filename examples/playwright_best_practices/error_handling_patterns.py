@@ -7,14 +7,19 @@ timeout management, retry mechanisms, and navigation failure recovery.
 
 import asyncio
 import logging
+import random
 import time
-from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from playwright.async_api import Page, async_playwright
 from playwright.async_api import TimeoutError as PlaywrightTimeout
@@ -42,7 +47,7 @@ class ErrorContext:
     url: str
     action: str
     selector: str | None = None
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     error_message: str = ""
     stack_trace: str = ""
     screenshot_path: str | None = None
@@ -62,7 +67,7 @@ class RetryStrategy:
         jitter: bool = True,
         retryable_exceptions: tuple[type[Exception], ...] = (Exception,),
         non_retryable_exceptions: tuple[type[Exception], ...] = (),
-    ):
+    ) -> None:
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
@@ -76,8 +81,6 @@ class RetryStrategy:
         delay = min(self.initial_delay * (self.backoff_factor ** (attempt - 1)), self.max_delay)
 
         if self.jitter:
-            import random
-
             delay *= 0.5 + random.random()
 
         return delay
@@ -105,7 +108,7 @@ class RetryStrategy:
                         raise
 
                     delay = self.calculate_delay(attempt)
-                    logger.warning(f"Attempt {attempt} failed: {e}. Retrying in {delay:.2f}s...")
+                    logger.warning("Attempt {attempt} failed: {e}. Retrying in {delay:.2f}s...")
                     await asyncio.sleep(delay)
 
             raise last_exception
@@ -116,7 +119,7 @@ class RetryStrategy:
 class TimeoutManager:
     """Manages different timeout strategies"""
 
-    def __init__(self, default_timeout: int = 30000):
+    def __init__(self, default_timeout: int = 30000) -> None:
         self.default_timeout = default_timeout
         self.timeouts = {"navigation": 30000, "action": 10000, "wait": 5000, "network": 60000}
 
@@ -137,7 +140,7 @@ class TimeoutManager:
 class NavigationHandler:
     """Handles navigation with fallbacks and recovery"""
 
-    def __init__(self, timeout_manager: TimeoutManager):
+    def __init__(self, timeout_manager: TimeoutManager) -> None:
         self.timeout_manager = timeout_manager
 
     async def navigate_with_fallback(
@@ -177,10 +180,10 @@ class NavigationHandler:
                     }
 
                 # Log non-success status
-                logger.warning(f"Navigation to {url} returned status {response.status}")
+                logger.warning("Navigation to {url} returned status {response.status}")
 
-            except Exception as e:
-                logger.error(f"Navigation to {url} failed: {e}")
+            except Exception:
+                logger.error("Navigation to {url} failed: {e}")
 
                 if i == len(all_urls) - 1:  # Last URL
                     raise
@@ -204,10 +207,10 @@ class NavigationHandler:
 
         for strategy in strategies:
             try:
-                logger.info(f"Trying recovery strategy: {strategy['name']}")
+                logger.info("Trying recovery strategy: {strategy['name']}")
                 await strategy["action"]()
                 return True
-            except:
+            except Exception:
                 continue
 
         return False
@@ -224,7 +227,6 @@ class NavigationHandler:
 
     async def _navigate_via_home(self, page: Page, target_url: str) -> None:
         """Navigate to home page first, then to target"""
-        from urllib.parse import urlparse
 
         parsed = urlparse(target_url)
         home_url = f"{parsed.scheme}://{parsed.netloc}"
@@ -236,7 +238,7 @@ class NavigationHandler:
 class ElementHandler:
     """Handles element interactions with error recovery"""
 
-    def __init__(self, timeout_manager: TimeoutManager):
+    def __init__(self, timeout_manager: TimeoutManager) -> None:
         self.timeout_manager = timeout_manager
 
     @RetryStrategy(max_attempts=3, retryable_exceptions=(PlaywrightTimeout,))
@@ -299,7 +301,7 @@ class ElementHandler:
             exists = await page.locator(selector).count() > 0
 
             if exists:
-                logger.warning(f"Element {selector} exists but not in state '{state}'")
+                logger.warning("Element {selector} exists but not in state '{state}'")
 
                 # Try alternative states
                 for alt_state in ["attached", "visible", "enabled"]:
@@ -317,7 +319,7 @@ class ElementHandler:
 class ErrorRecovery:
     """Comprehensive error recovery system"""
 
-    def __init__(self, screenshot_dir: str = "./error_screenshots"):
+    def __init__(self, screenshot_dir: str = "./error_screenshots") -> None:
         self.screenshot_dir = Path(screenshot_dir)
         self.screenshot_dir.mkdir(exist_ok=True)
         self.error_log: list[ErrorContext] = []
@@ -350,7 +352,7 @@ class ErrorRecovery:
         try:
             screenshot_path = await self._capture_screenshot(page, error_type)
             error_context.screenshot_path = str(screenshot_path)
-        except:
+        except Exception:
             logger.error("Failed to capture error screenshot")
 
         # Log error
@@ -363,7 +365,7 @@ class ErrorRecovery:
                 await recovery_strategy(page, error_context)
                 error_context.recovery_attempted = True
             except:
-                logger.error(f"Recovery failed for {error_type}")
+                logger.error("Recovery failed for {error_type}")
 
         return error_context
 
@@ -385,7 +387,7 @@ class ErrorRecovery:
 
     async def _capture_screenshot(self, page: Page, error_type: ErrorType) -> Path:
         """Capture screenshot for error"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         filename = f"{error_type.value}_{timestamp}.png"
         filepath = self.screenshot_dir / filename
 
@@ -399,13 +401,11 @@ class ErrorRecovery:
         # Try reloading with shorter timeout
         try:
             await page.reload(timeout=5000, wait_until="domcontentloaded")
-        except:
+        except Exception:
             # If reload fails, try going back and forward
-            try:
+            with suppress(Exception):
                 await page.go_back(timeout=5000)
                 await page.go_forward(timeout=5000)
-            except:
-                pass
 
     async def _recover_from_navigation_error(self, page: Page, context: ErrorContext):
         """Recovery strategy for navigation errors"""
@@ -421,7 +421,7 @@ class ErrorRecovery:
             base_url = current_url.split("?")[0]
             try:
                 await page.goto(base_url, wait_until="domcontentloaded", timeout=10000)
-            except:
+            except Exception:
                 pass
 
     async def _recover_from_missing_element(self, page: Page, context: ErrorContext):
@@ -500,7 +500,7 @@ class ErrorRecovery:
         return summary
 
 
-async def demonstrate_error_handling():
+async def demonstrate_error_handling() -> None:
     """Demonstrate error handling patterns"""
 
     async with async_playwright() as p:

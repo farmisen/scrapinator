@@ -8,11 +8,13 @@ concurrent operations at scale with proper resource management.
 import asyncio
 import logging
 import time
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator  # noqa: TC004
 
 from playwright.async_api import Browser, Page, async_playwright
 
@@ -30,7 +32,7 @@ class BrowserStats:
     contexts_active: int = 0
     pages_created: int = 0
     errors: int = 0
-    last_used: datetime = field(default_factory=datetime.now)
+    last_used: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -66,7 +68,7 @@ class BrowserPool:
         max_contexts_per_browser: int = 10,
         browser_idle_timeout: int = 300,  # seconds
         headless: bool = True,
-    ):
+    ) -> None:
         self.min_browsers = min_browsers
         self.max_browsers = max_browsers
         self.max_contexts_per_browser = max_contexts_per_browser
@@ -91,7 +93,7 @@ class BrowserPool:
             "--disable-web-security",
         ]
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the browser pool"""
         self._playwright = await async_playwright().start()
 
@@ -102,26 +104,22 @@ class BrowserPool:
         # Start monitoring task
         self._monitor_task = asyncio.create_task(self._monitor_browsers())
 
-        logger.info(f"Browser pool started with {self.min_browsers} browsers")
+        logger.info("Browser pool started with %d browsers", self.min_browsers)
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the browser pool and clean up resources"""
         self._shutdown = True
 
         if self._monitor_task:
             self._monitor_task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._monitor_task
-            except asyncio.CancelledError:
-                pass
 
         # Close all browsers
         async with self._lock:
-            for browser_id, browser in list(self._browsers.items()):
-                try:
+            for _browser_id, browser in list(self._browsers.items()):
+                with suppress(Exception):
                     await browser.close()
-                except:
-                    pass
 
             self._browsers.clear()
             self._browser_stats.clear()
@@ -139,11 +137,11 @@ class BrowserPool:
 
         self._browsers[browser_id] = browser
         self._browser_stats[browser_id] = BrowserStats(
-            browser_id=browser_id, created_at=datetime.now()
+            browser_id=browser_id, created_at=datetime.now(UTC)
         )
         self._context_counts[browser_id] = 0
 
-        logger.info(f"Created browser: {browser_id}")
+        logger.info("Created browser: %s", browser_id)
         return browser
 
     async def _get_available_browser(self) -> tuple[str, Browser] | None:
@@ -152,7 +150,7 @@ class BrowserPool:
             # Find browser with capacity
             for browser_id, browser in self._browsers.items():
                 if self._context_counts[browser_id] < self.max_contexts_per_browser:
-                    self._browser_stats[browser_id].last_used = datetime.now()
+                    self._browser_stats[browser_id].last_used = datetime.now(UTC)
                     return browser_id, browser
 
             # Create new browser if under limit
@@ -190,11 +188,12 @@ class BrowserPool:
                     break
 
                 if self._shutdown:
-                    raise RuntimeError("Browser pool is shutting down")
+                    msg = "Browser pool is shutting down"
+                    raise RuntimeError(msg)
 
                 await asyncio.sleep(0.1)
 
-            wait_time = time.time() - wait_start
+            wait_time = time.time() - wait_start  # noqa: F841
 
             # Create context
             async with self._lock:
@@ -215,7 +214,7 @@ class BrowserPool:
             yield page
 
         except Exception as e:
-            logger.error(f"Error in browser pool: {e}")
+            logger.exception("Error in browser pool: %s", e)
             if browser_id:
                 async with self._lock:
                     self._browser_stats[browser_id].errors += 1
@@ -224,30 +223,26 @@ class BrowserPool:
         finally:
             # Cleanup
             if page:
-                try:
+                with suppress(Exception):
                     await page.close()
-                except:
-                    pass
 
             if context:
-                try:
+                with suppress(Exception):
                     await context.close()
-                except:
-                    pass
 
             if browser_id:
                 async with self._lock:
                     self._context_counts[browser_id] -= 1
                     self._browser_stats[browser_id].contexts_active -= 1
 
-    async def _monitor_browsers(self):
+    async def _monitor_browsers(self) -> None:
         """Monitor browsers and clean up idle ones"""
         while not self._shutdown:
             try:
                 await asyncio.sleep(30)  # Check every 30 seconds
 
                 async with self._lock:
-                    current_time = datetime.now()
+                    current_time = datetime.now(UTC)
                     browsers_to_remove = []
 
                     for browser_id, stats in self._browser_stats.items():
@@ -270,16 +265,14 @@ class BrowserPool:
                         del self._browser_stats[browser_id]
                         del self._context_counts[browser_id]
 
-                        try:
+                        with suppress(Exception):
                             await browser.close()
-                            logger.info(f"Closed idle browser: {browser_id}")
-                        except:
-                            pass
+                            logger.info("Closed idle browser: %s", browser_id)
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Error in browser monitor: {e}")
+                logger.exception("Error in browser monitor: %s", e)
 
     def get_stats(self) -> PoolStats:
         """Get current pool statistics"""
@@ -301,7 +294,7 @@ class BrowserPool:
 class ConcurrentScraper:
     """Example scraper using the browser pool"""
 
-    def __init__(self, browser_pool: BrowserPool):
+    def __init__(self, browser_pool: BrowserPool) -> None:
         self.pool = browser_pool
 
     async def scrape_url(self, url: str) -> dict[str, Any]:
@@ -332,7 +325,7 @@ class ConcurrentScraper:
                     "success": True,
                 }
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 return {
                     "url": url,
                     "error": str(e),
@@ -346,7 +339,7 @@ class ConcurrentScraper:
         return await asyncio.gather(*tasks)
 
 
-async def demonstrate_browser_pool():
+async def demonstrate_browser_pool() -> None:
     """Demonstrate browser pool usage"""
 
     # Create browser pool
@@ -398,7 +391,7 @@ async def demonstrate_browser_pool():
         await pool.stop()
 
 
-async def performance_test():
+async def performance_test() -> None:
     """Test performance with different pool configurations"""
 
     configurations = [
@@ -443,4 +436,5 @@ if __name__ == "__main__":
     asyncio.run(demonstrate_browser_pool())
 
     # Run performance test
+    # Uncomment to run performance test:
     # asyncio.run(performance_test())

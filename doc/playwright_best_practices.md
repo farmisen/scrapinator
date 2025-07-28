@@ -999,6 +999,18 @@ Based on testing with common web scraping scenarios:
 - [ ] Implement circuit breakers for repeated failures
 - [ ] Clean up resources in finally blocks
 
+## Example Code
+
+The `/examples/playwright_best_practices/` directory contains runnable example code demonstrating all the patterns described in this document:
+
+- `efficient_page_loading.py` - Resource blocking, parallel loading, wait strategies
+- `element_discovery_patterns.py` - Shadow DOM, iframes, dynamic content handling  
+- `browser_pool_manager.py` - Scalable browser pool implementation
+- `error_handling_patterns.py` - Comprehensive error handling and recovery
+- `security_patterns.py` - Security sandboxing and resource limits
+
+**Note**: The example files are designed for clarity and demonstration purposes. Some linting rules are suppressed with `# noqa` comments to maintain readability and focus on the patterns being demonstrated.
+
 ## Conclusion
 
 These best practices provide a comprehensive foundation for building robust, efficient, and secure web exploration systems with Playwright. Key takeaways:
